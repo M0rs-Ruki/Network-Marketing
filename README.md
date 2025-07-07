@@ -1,9 +1,14 @@
 📈 Network-Marketing Platform
 A full-stack Node.js application for a modern network marketing system, where users can register, build teams, earn referral points, purchase products, and track their activities in a personalized dashboard.
 
-🎥 Demo
-
+🎥 Demo video
 https://youtu.be/-pGbPXsBXek
+## 🎥 Demo
+
+[![Network Marketing Demo](https://img.youtube.com/vi/-pGbPXsBXek.jpg)](https://youtu.be/-pGbPXsBXek)
+
+Click the image to watch a short demo of the platform in action!
+
 
 ✨ Features
 ✅ User registration and login with secure JWT authentication
