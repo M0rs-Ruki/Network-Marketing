@@ -1,0 +1,139 @@
+/* Custom Tailwind Configuration */
+:root {
+    --color-primary-blue: #2c5282; /* A softer blue for a professional look */
+    --color-accent-gold: #D4AF37; /* A richer gold */
+    --color-light-bg: #F8F9FA; /* Off-white for background */
+    --color-card-bg: #FFFFFF; /* Pure white for card */
+    --color-text-dark: #34495E; /* Dark gray for main text */
+    --color-text-light: #566573; /* Lighter gray for secondary text */
+    --color-border: #E2E8F0; /* Light border color */
+    --color-success: #4CAF50;
+}
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--color-light-bg);
+    color: var(--color-text-dark);
+}
+.bg-primary-blue { background-color: var(--color-primary-blue); }
+.text-primary-blue { color: var(--color-primary-blue); }
+.bg-accent-gold { background-color: var(--color-accent-gold); }
+.text-accent-gold { color: var(--color-accent-gold); }
+.border-accent-gold { border-color: var(--color-accent-gold); }
+
+/* Responsive Navbar adjustments for smaller screens */
+@media (max-width: 768px) {
+    .navbar-menu {
+        display: none; /* Hidden by default on small screens */
+        flex-direction: column;
+        width: 100%;
+        background-color: var(--color-primary-blue);
+        position: absolute;
+        top: 4rem; /* Below the main nav bar */
+        left: 0;
+        padding-bottom: 1rem;
+    }
+    .navbar-menu.active {
+        display: flex; /* Show when active */
+    }
+    .navbar-menu li {
+        width: 100%;
+        text-align: center;
+        padding: 0.5rem 0;
+    }
+    .navbar-menu a {
+        display: block;
+        padding: 0.5rem 1rem;
+    }
+    .navbar-toggle {
+        display: block; /* Show hamburger icon */
+    }
+}
+
+/* Custom Modal Styles */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1001; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: var(--color-card-bg);
+    margin: auto;
+    padding: 20px;
+    border: 1px solid var(--color-border);
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Input field with icon styling */
+.input-group {
+    position: relative;
+}
+.input-group input, .input-group select, .input-group textarea {
+    padding-left: 2.5rem; /* Space for the icon */
+}
+.input-group .icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-light);
+    pointer-events: none; /* Make icon unclickable */
+}
+.input-group textarea + .icon {
+    top: 1.25rem; /* Adjust for textarea */
+    transform: translateY(0%);
+}
+
+/* Responsive adjustments for main content layout */
+@media (max-width: 768px) {
+    .hero-section h1 {
+        font-size: 2.5rem; /* Smaller font size for mobile hero title */
+    }
+    .hero-section p {
+        font-size: 1rem; /* Smaller font size for mobile hero text */
+    }
+    .contact-grid {
+        grid-template-columns: 1fr; /* Stack columns on small screens */
+    }
+    .contact-details-card, .contact-form-card {
+        padding: 1.5rem; /* Reduce padding on cards for mobile */
+    }
+    .contact-details-card .space-y-6 > div {
+        flex-direction: row; /* Keep contact detail items in a row */
+        align-items: center;
+        text-align: left;
+    }
+    .contact-details-card .space-y-6 > div span {
+        font-size: 0.9rem; /* Smaller font for details text */
+    }
+    .contact-details-card .space-y-6 > div i {
+        font-size: 1.5rem; /* Smaller icons for details */
+    }
+}

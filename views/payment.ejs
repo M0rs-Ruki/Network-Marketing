@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Make Payment - Diamond Achievers Club</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-blue-dark': '#114a84',
+                        'primary-blue-light': '#007BFF',
+                        'golden-accent': '#FFD700',
+                    },
+                    fontFamily: {
+                        montserrat: ['Montserrat', 'sans-serif'],
+                        poppins: ['Poppins', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUserId = null;
+
+        // Function to show a custom message box
+        function showMessageBox(message) {
+            const messageBox = document.getElementById('messageBox');
+            const messageText = document.getElementById('messageText');
+            const okButton = document.getElementById('messageBoxOkButton');
+            if (messageText && messageBox && okButton) {
+                messageText.textContent = message;
+                messageBox.classList.remove('hidden');
+                messageBox.classList.add('flex');
+                okButton.onclick = () => {
+                    messageBox.classList.add('hidden');
+                    messageBox.classList.remove('flex');
+                };
+            } else {
+                console.warn("Message box elements not found.");
+            }
+        }
+        window.showMessageBox = showMessageBox; // Expose globally for use in other scripts
+
+        // Listen for authentication state changes and initialize user
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                console.log("Firebase initialized. User ID:", currentUserId);
+            } else {
+                console.log("No user signed in. Attempting anonymous or custom token sign-in.");
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously.");
+                    }
+                    currentUserId = auth.currentUser.uid;
+                    console.log("Firebase Auth ready. User ID:", currentUserId);
+                } catch (error) {
+                    console.error("Error signing in:", error);
+                    showMessageBox(`Error initializing authentication: ${error.message}`);
+                }
+            }
+        });
+
+        // Expose Firebase functions for use in event listeners later
+        window.firebaseDb = db;
+        window.updateDoc = updateDoc;
+        window.doc = doc;
+        window.getAuth = getAuth; // Important for direct auth access
+        window.currentUserId = currentUserId; // This will be null initially, updated by onAuthStateChanged
+    </script>
+    <style>
+        /* Custom styles if needed, though Tailwind is preferred */
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        /* Make scroll behavior smooth for scrolling to errors */
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col min-h-screen text-gray-800 font-poppins">
+
+    <!-- Custom Message Box -->
+    <div id="messageBox" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 text-white p-8 rounded-lg shadow-xl text-center max-w-sm w-full mx-4">
+            <p id="messageText" class="mb-5 text-lg"></p>
+            <button id="messageBoxOkButton" class="bg-primary-blue-light hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full transition-colors duration-300">OK</button>
+        </div>
+    </div>
+
+    <header class="bg-primary-blue-dark text-white py-4 shadow-md sticky top-0 z-40">
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div class="logo flex items-center font-montserrat text-2xl font-bold text-golden-accent">
+                <img src="./images/logo3.jpg" alt="Company Logo" class="h-10 w-10 rounded-md mr-3">
+                Diamond Achievers Club
+            </div>
+            <nav>
+                <!-- Navigation links for desktop, can be re-added if needed for this page -->
+                <!-- For simplicity, this page might not need full nav -->
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-6">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center animate-fade-in">
+            <h2 class="text-3xl font-montserrat font-bold text-primary-blue-dark mb-6">Complete Your Payment</h2>
+
+            <div class="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <p class="text-lg mb-2"><i class="fas fa-box text-primary-blue-light mr-2"></i>Selected Package: <span id="packageName" class="font-semibold text-primary-blue-dark"></span></p>
+                <p class="text-xl font-bold text-green-600"><i class="fas fa-rupee-sign text-green-600 mr-2"></i>Amount: <span id="packagePrice"></span></p>
+            </div>
+
+            <p class="text-gray-600 mb-6">Kripya apni sadasyata ko sakriya karne ke liye bhugtan karein.</p>
+
+            <!-- Payment Method Simulation -->
+            <div class="space-y-4 mb-8">
+                <button id="payNowBtn" class="w-full bg-golden-accent hover:bg-yellow-500 text-primary-blue-dark font-bold py-3 px-6 rounded-full transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1">
+                    <i class="fas fa-credit-card mr-2"></i> Pay Now (Simulated)
+                </button>
+                <button id="cancelPaymentBtn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-full transition-colors duration-300 shadow-md">
+                    <i class="fas fa-times-circle mr-2"></i> Cancel & Back to Registration
+                </button>
+            </div>
+
+            <p class="text-sm text-gray-500 mt-4">Yeh ek simulated bhugtan prakriya hai. Vaastavik gateway samakaran ki zaroorat hogi.</p>
+        </div>
+    </main>
+
+    <footer class="bg-primary-blue-dark text-white py-8 text-center shadow-inner">
+        <div class="container mx-auto px-4">
+            <p class="text-sm text-gray-300">&copy; 2025 Diamond Achievers Club. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script type="module">
+        document.addEventListener('DOMContentLoaded', async function() {
+            const params = new URLSearchParams(window.location.search);
+            const packageName = params.get('package');
+            const packagePrice = params.get('price');
+            const userId = params.get('userId');
+            const email = params.get('email'); // Added email from params
+            const mobile = params.get('mobile'); // Added mobile from params
+
+            if (!packageName || !packagePrice || !userId) {
+                showMessageBox('Payment details missing. Redirecting to registration.');
+                setTimeout(() => window.location.href = 'regrestation.html', 2000);
+                return;
+            }
+
+            document.getElementById('packageName').textContent = packageName;
+            document.getElementById('packagePrice').textContent = `₹ ${packagePrice}`;
+
+            const payNowBtn = document.getElementById('payNowBtn');
+            const cancelPaymentBtn = document.getElementById('cancelPaymentBtn');
+
+            payNowBtn.addEventListener('click', async function() {
+                payNowBtn.disabled = true;
+                cancelPaymentBtn.disabled = true;
+                payNowBtn.textContent = 'Processing Payment...';
+                payNowBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+                showMessageBox('Bhugtan prakriya jaari hai. Kripya intezaar karein...');
+
+                // Simulate payment gateway processing
+                await new Promise(resolve => setTimeout(resolve, 3000)); // 3-second delay
+
+                // Simulate payment success
+                const paymentSuccess = true; // In a real scenario, this would come from the gateway callback
+
+                if (paymentSuccess) {
+                    try {
+                        const db = window.firebaseDb;
+                        const updateDoc = window.updateDoc;
+                        const doc = window.doc;
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // Re-get appId
+
+                        // Update payment status in Firestore
+                        // Ensure we use the userId passed from the registration page
+                        const userProfileDocRef = doc(db, `artifacts/${appId}/users/${userId}/registrations`, "profile");
+                        await updateDoc(userProfileDocRef, {
+                            paymentStatus: 'completed',
+                            paymentDate: new Date(),
+                            packagePaid: packageName, // Confirm the package paid
+                            amountPaid: parseInt(packagePrice), // Confirm the amount paid
+                        });
+
+                        showMessageBox('Bhugtan safal raha! Aapki sadasyata ab sakriya hai.');
+                        console.log('Payment successful and Firestore updated for user:', userId);
+
+                        // Redirect to a success page
+                        setTimeout(() => {
+                            window.location.href = `success.html?userId=${userId}&package=${encodeURIComponent(packageName)}`;
+                        }, 2000);
+
+                    } catch (error) {
+                        console.error('Firestore update error after payment:', error);
+                        showMessageBox(`Bhugtan safal raha, lekin data update karne mein error: ${error.message}. Kripya support se sampark karein.`);
+                        payNowBtn.disabled = false;
+                        cancelPaymentBtn.disabled = false;
+                        payNowBtn.textContent = 'Pay Now (Simulated)';
+                        payNowBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                    }
+                } else {
+                    showMessageBox('Bhugtan asafal raha. Kripya phir se koshish karein.');
+                    payNowBtn.disabled = false;
+                    cancelPaymentBtn.disabled = false;
+                    payNowBtn.textContent = 'Pay Now (Simulated)';
+                    payNowBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                }
+            });
+
+            cancelPaymentBtn.addEventListener('click', function() {
+                showMessageBox('Bhugtan radd kiya gaya. Aapko registration page par wapas bheja ja raha hai.');
+                setTimeout(() => window.location.href = 'regrestation.html', 2000);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+/* Custom gradient for background */
+body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(to right, #1a1b3a, #461964);
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Custom gradient for login button */
+.btn-gradient {
+    background: linear-gradient(to right, #FF007F, #A020F0); /* Pink to Purple */
+    box-shadow: 0 4px 15px rgba(255, 0, 127, 0.4);
+    transition: all 0.3s ease;
+}
+.btn-gradient:hover {
+    box-shadow: 0 6px 20px rgba(255, 0, 127, 0.6);
+    transform: translateY(-2px);
+}
+
+/* Animated gradient wave for the right side */
+.gradient-wave-bg {
+    background: linear-gradient(135deg, #461964 0%, #1a1b3a 100%);
+    background-size: 400% 400%;
+    animation: gradientAnimation 15s ease infinite;
+}
+
+@keyframes gradientAnimation {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Typing animation for "Welcome." text */
+.typing-animation::after {
+    content: '|';
+    animation: blink-caret .75s step-end infinite;
+}
+
+/* The typing animation effect */
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
+
+/* The typewriter cursor effect */
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: white; }
+}
+
+/* Styling for the custom message box */
+.message-box {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #333;
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: none; /* Hidden by default */
+    text-align: center;
+    max-width: 90%; /* Mobile friendly */
+    width: 300px;
+}
+.message-box button {
+    background-color: #A020F0;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+.message-box button:hover {
+    background-color: #be40ff;
+}

@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - Diamond Achievers Club</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Poppins:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <!-- Firebase SDKs -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+      import {
+        getAuth,
+        createUserWithEmailAndPassword,
+        signInAnonymously,
+        signInWithCustomToken,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+      import {
+        getFirestore,
+        doc,
+        setDoc,
+        collection,
+      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+      // Global variables provided by the Canvas environment
+      const appId =
+        typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+      const firebaseConfig =
+        typeof __firebase_config !== "undefined"
+          ? JSON.parse(__firebase_config)
+          : {};
+      const initialAuthToken =
+        typeof __initial_auth_token !== "undefined"
+          ? __initial_auth_token
+          : null;
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      let currentUserId = null;
+
+      // Function to show a custom message box
+      function showMessageBox(message) {
+        const messageBox = document.getElementById("messageBox");
+        const messageText = document.getElementById("messageText");
+        if (messageText && messageBox) {
+          messageText.textContent = message;
+          messageBox.style.display = "block";
+        } else {
+          console.warn("Message box elements not found.");
+        }
+      }
+      window.showMessageBox = showMessageBox; // Expose globally
+
+      // Listen for authentication state changes and initialize user
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          currentUserId = user.uid;
+          console.log("Firebase initialized. User ID:", currentUserId);
+        } else {
+          console.log(
+            "No user signed in. Attempting anonymous or custom token sign-in."
+          );
+          try {
+            if (initialAuthToken) {
+              await signInWithCustomToken(auth, initialAuthToken);
+              console.log("Signed in with custom token.");
+            } else {
+              await signInAnonymously(auth);
+              console.log("Signed in anonymously.");
+            }
+            currentUserId = auth.currentUser.uid;
+            console.log("Firebase Auth ready. User ID:", currentUserId);
+          } catch (error) {
+            console.error("Error signing in:", error);
+            showMessageBox(
+              `Error initializing authentication: ${error.message}`
+            );
+          }
+        }
+      });
+
+      // Expose Firebase functions for the form submission
+      window.firebaseAuth = auth;
+      window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+      window.firebaseDb = db;
+      window.setDoc = setDoc;
+      window.collection = collection;
+      window.doc = doc;
+      window.getAuth = getAuth; // For accessing auth object in modules
+    </script>
+    <style>
+      /* Define CSS variables for consistent theming */
+      :root {
+        --primary-blue-dark: #114a84; /* Professionalism and trust ke liye gehra neela */
+        --primary-blue-light: #007bff; /* Urja aur gatishilata ke liye halka neela */
+        --white: #ffffff; /* Spashtata aur saralta ke liye safed */
+        --light-gray: #f8f9fa; /* Halki background ke liye halka gray */
+        --golden-accent: #ffd700; /* Safalta aur aakanksha ke liye sunahara */
+        --text-color: #333; /* Samanya text ke liye gehra gray */
+        --sidebar-width: 250px; /* Sidebar ki चौड़ाई */
+        --navbar-color: #1a4d7d; /* Navbar ka rang badal gaya */
+      }
+
+      /* Universal box-sizing for consistent layout */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* Base body styling for font and background */
+      body {
+        font-family: "Poppins", sans-serif; /* Aadhunik aur padhne mein aasan font */
+        line-height: 1.6;
+        color: var(--text-color);
+        background-color: var(--light-gray);
+        overflow-x: hidden; /* Sidebar khula hone par horizontal scroll ko roke */
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh; /* Body ko poori viewport height lene dein */
+      }
+
+      /* Custom Message Box */
+      .message-box {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: #333;
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: none; /* Default roop se chhipa hua */
+        text-align: center;
+        max-width: 90%;
+        width: 300px;
+      }
+      .message-box button {
+        background-color: var(--primary-blue-light);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        margin-top: 15px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .message-box button:hover {
+        background-color: #0056b3;
+      }
+
+      /* Container for content alignment */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        width: 100%; /* Chhote screens par container ko poori चौड़ाई lene dein */
+      }
+
+      /* --- Header / Navigation Bar --- */
+      header {
+        background-color: var(--navbar-color); /* Navbar ka rang badal gaya */
+        color: var(--white);
+        padding: 15px 0;
+        position: sticky; /* Aasan navigation ke liye sticky header */
+        top: 0;
+        z-index: 1000; /* Header ko doosre content ke upar rakhen */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Gehrai ke liye halki chhaya */
+      }
+
+      header .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      /* Logo styling */
+      .logo {
+        font-family: "Montserrat", sans-serif; /* Logo ke liye alag font */
+        font-size: 1.8em;
+        font-weight: 700;
+        color: var(--golden-accent); /* Logo ke liye sunahara accent */
+        display: flex;
+        align-items: center;
+      }
+
+      .logo img {
+        height: 40px; /* Zaroorat ke mutabik adjust karein */
+        margin-right: 10px;
+        border-radius: 5px; /* Logo image ke liye halki gol किनारे */
+      }
+
+      /* Navigation links styling (for desktop, will be hidden when sidebar is active) */
+      nav {
+        display: flex;
+        align-items: center;
+      }
+
+      nav ul {
+        list-style: none;
+        display: flex;
+        margin-right: 20px; /* Nav links aur avatar ke beech space */
+      }
+
+      nav ul li {
+        margin-left: 25px;
+        position: relative; /* Underline positioning ke liye zaroori */
+      }
+
+      nav ul li a {
+        color: var(--white);
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s ease; /* Smooth hover effect */
+        padding-bottom: 5px; /* Underline ke liye space */
+      }
+
+      nav ul li a:hover {
+        color: var(--golden-accent);
+      }
+
+      /* Underline effect for active/hovered navigation links */
+      nav ul li a::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background-color: var(--golden-accent); /* Static sunahara rang */
+        transform: scaleX(0); /* Default roop se chhipa hua */
+        transition: transform 0.3s ease; /* Expansion ke liye smooth transition */
+      }
+
+      nav ul li a:hover::after,
+      nav ul li a.active-link::after {
+        transform: scaleX(1); /* Hover/active par underline dikhayein */
+      }
+
+      .navbar-avatar-wrapper {
+        position: relative;
+        cursor: pointer;
+      }
+
+      .navbar-avatar {
+        font-size: 1.8em;
+        color: var(--white);
+        transition: color 0.3s ease, transform 0.3s ease; /* Hover effect ke liye transform joda gaya */
+      }
+
+      .navbar-avatar:hover {
+        color: var(--golden-accent);
+        transform: scale(1.1); /* Hover par thoda bada karein */
+      }
+
+      .avatar-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%; /* Avatar ke neeche rakhen */
+        right: 0;
+        background-color: var(--navbar-color);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+        border-radius: 5px;
+        min-width: 150px;
+        padding: 10px 0;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(10px);
+        transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+      }
+
+      .navbar-avatar-wrapper.active .avatar-dropdown {
+        display: block;
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+
+      .avatar-dropdown a {
+        color: var(
+          --white
+        ) !important; /* Default link color ko override karein */
+        padding: 10px 20px;
+        text-decoration: none;
+        display: block;
+        font-weight: 500;
+        transition: background-color 0.2s ease, color 0.2s ease;
+        white-space: nowrap; /* Text wrapping ko roke */
+      }
+
+      .avatar-dropdown a:hover {
+        background-color: var(--primary-blue-light);
+        color: var(--white) !important;
+      }
+
+      /* Hamburger menu for mobile and sidebar toggle */
+      .hamburger {
+        display: none; /* Desktop par default roop se chhipa hua */
+        flex-direction: column;
+        cursor: pointer;
+        padding: 5px; /* Aasan clicking ke liye padding jodein */
+      }
+
+      .hamburger span {
+        height: 3px;
+        width: 25px;
+        background-color: var(--white);
+        margin-bottom: 4px;
+        border-radius: 2px;
+        transition: all 0.3s ease; /* Animation ke liye smooth transition */
+      }
+
+      /* Hamburger menu animation when active (optional, but good UX) */
+      .hamburger.active span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+      }
+
+      .hamburger.active span:nth-child(2) {
+        opacity: 0;
+      }
+
+      .hamburger.active span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+      }
+
+      /* --- Sidebar Navigation --- */
+      #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: var(--sidebar-width);
+        height: 100%;
+        background-color: var(--primary-blue-dark);
+        color: var(--white);
+        padding-top: 70px; /* Header ke liye space */
+        transform: translateX(-100%); /* Default roop se chhipa hua */
+        transition: transform 0.3s ease-in-out;
+        z-index: 1000; /* Main content ke upar, header ke neeche */
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+      }
+
+      #sidebar.active {
+        transform: translateX(0); /* Sidebar dikhayein */
+      }
+
+      #sidebar .sidebar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background-color: #002244; /* Header ke liye thoda gehra neela */
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+      }
+
+      #sidebar .sidebar-header .close-btn {
+        font-size: 1.8em;
+        cursor: pointer;
+        color: var(--white);
+        transition: color 0.3s ease;
+      }
+
+      #sidebar .sidebar-header .close-btn:hover {
+        color: var(--golden-accent);
+      }
+
+      #sidebar .sidebar-header .sidebar-logo {
+        font-family: "Montserrat", sans-serif;
+        font-size: 1.5em;
+        font-weight: 700;
+        color: var(--golden-accent);
+      }
+
+      #sidebar ul {
+        list-style: none;
+        padding: 20px 0;
+        flex-grow: 1; /* List ko uplabdh space lene dein */
+      }
+
+      #sidebar ul li {
+        margin-bottom: 5px;
+      }
+
+      #sidebar ul li a {
+        display: block;
+        padding: 12px 20px;
+        color: var(--white);
+        text-decoration: none;
+        font-weight: 500;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        display: flex;
+        align-items: center;
+      }
+
+      #sidebar ul li a i {
+        margin-right: 10px;
+        font-size: 1.1em;
+        color: var(--golden-accent);
+      }
+
+      #sidebar ul li a:hover,
+      #sidebar ul li a.sidebar-active-link {
+        background-color: var(--primary-blue-light);
+        color: var(--white);
+      }
+
+      #sidebar .sidebar-bottom-links {
+        padding: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      #sidebar .sidebar-bottom-links a {
+        display: block;
+        padding: 10px 0;
+        color: var(--white);
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s ease;
+        text-align: center;
+      }
+
+      #sidebar .sidebar-bottom-links a:hover {
+        color: var(--golden-accent);
+      }
+
+      /* Overlay when sidebar is active */
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999; /* Sidebar ke neeche, content ke upar */
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+      }
+
+      .overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      /* --- Main Content for Registration Page --- */
+      main {
+        flex-grow: 1; /* Main content ko uplabdh space lene dein */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px 20px; /* Spacing ke liye padding jodein */
+        background-color: var(--light-gray); /* Page ke liye halki background */
+      }
+
+      .registration-card {
+        background-color: var(--white);
+        border-radius: 10px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        padding: 40px;
+        max-width: 500px;
+        width: 100%;
+        text-align: center;
+        animation: fadeIn 0.8s ease-out; /* Form fade-in animation */
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .registration-card h2 {
+        font-family: "Montserrat", sans-serif;
+        font-size: 2.2em;
+        color: var(--primary-blue-dark);
+        margin-bottom: 25px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+        text-align: left;
+      }
+
+      .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text-color);
+      }
+
+      .form-group input[type="text"],
+      .form-group input[type="email"],
+      .form-group input[type="tel"],
+      .form-group input[type="password"],
+      .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1em;
+        color: var(--text-color);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .form-group input[type="text"]:focus,
+      .form-group input[type="email"]:focus,
+      .form-group input[type="tel"]:focus,
+      .form-group input[type="password"]:focus,
+      .form-group select:focus {
+        border-color: var(--primary-blue-light);
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); /* Focus glow effect */
+        outline: none;
+      }
+
+      .form-group input[type="tel"] {
+        padding-left: 55px; /* +91 ke liye space */
+      }
+      .form-group .phone-input-wrapper {
+        position: relative;
+      }
+      .form-group .phone-prefix {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #777;
+        font-size: 1em;
+      }
+
+      .form-group small.error-message {
+        color: #e74c3c;
+        font-size: 0.85em;
+        margin-top: 5px;
+        display: block;
+      }
+
+      .form-submit-btn {
+        display: block;
+        width: 100%;
+        background-color: var(--golden-accent);
+        color: var(--primary-blue-dark);
+        padding: 15px 20px;
+        border: none;
+        border-radius: 50px;
+        font-size: 1.1em;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.3s ease,
+          box-shadow 0.3s ease;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .form-submit-btn:hover {
+        background-color: #e6c200;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+      }
+
+      /* --- Footer --- */
+      footer {
+        background-color: var(--primary-blue-dark);
+        color: var(--white);
+        padding: 40px 0;
+        text-align: center;
+      }
+
+      footer .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* Updated footer layout for columns */
+      .footer-content-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 30px;
+        width: 100%;
+        max-width: 900px; /* Padhne mein behtar banane ke liye चौड़ाई ko seemit karein */
+        margin-bottom: 30px;
+        text-align: left; /* Columns ke andar text ko left align karein */
+      }
+
+      .footer-column h4 {
+        font-family: "Montserrat", sans-serif;
+        font-size: 1.3em;
+        color: var(--golden-accent);
+        margin-bottom: 15px;
+      }
+
+      .footer-column ul {
+        list-style: none;
+        padding: 0;
+      }
+
+      .footer-column ul li {
+        margin-bottom: 10px;
+      }
+
+      .footer-column ul li a {
+        color: var(--white);
+        text-decoration: none;
+        transition: color 0.3s ease;
+        font-size: 0.95em;
+      }
+
+      .footer-column ul li a:hover {
+        color: var(--golden-accent);
+      }
+
+      .footer-column .contact-info p {
+        margin-bottom: 10px;
+        font-size: 0.95em;
+        display: flex;
+        align-items: center;
+        color: var(--white);
+      }
+
+      .footer-column .contact-info p i {
+        margin-right: 10px;
+        color: var(--golden-accent);
+      }
+
+      .social-media {
+        margin-top: 20px; /* Social media icons ke upar kuchh space jodein */
+      }
+
+      .social-media a {
+        color: var(--white);
+        font-size: 1.8em;
+        margin: 0 10px;
+        transition: color 0.3s ease;
+      }
+
+      .social-media a:hover {
+        color: var(--golden-accent);
+      }
+
+      .copyright {
+        margin-top: 20px;
+        font-size: 0.9em;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      /* --- Mobile Responsiveness --- */
+      @media (max-width: 768px) {
+        /* Hide desktop nav and show hamburger */
+        nav ul {
+          display: none; /* Mobile par desktop nav ko chhipayein */
+        }
+
+        .hamburger {
+          display: flex; /* Mobile par hamburger icon dikhayein */
+        }
+
+        /* Adjust registration card padding for mobile */
+        .registration-card {
+          padding: 25px;
+          margin: 0 15px; /* Horizontal margin jodein */
+        }
+
+        .registration-card h2 {
+          font-size: 1.8em;
+        }
+
+        /* Stack footer columns on mobile */
+        .footer-content-grid {
+          grid-template-columns: 1fr;
+          text-align: center; /* Stacked columns ke liye text ko center align karein */
+        }
+
+        .footer-column ul li {
+          display: inline-block; /* Behtar spacing ke liye list items ko inline banayein */
+          margin: 5px 10px;
+        }
+
+        .footer-column .contact-info p {
+          justify-content: center; /* Contact info ko center karein */
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Custom Message Box -->
+    <div id="messageBox" class="message-box">
+      <p id="messageText"></p>
+      <button
+        onclick="document.getElementById('messageBox').style.display='none'"
+      >
+        OK
+      </button>
+    </div>
+
+    <header>
+      <div class="container">
+        <div class="logo">
+          <img src="logo3.jpg" alt="Company Logo" />
+          <!-- Company ka Logo -->
+          Diamond Achievers Club
+        </div>
+        <nav>
+          <ul class="nav-links">
+            <li><a href="index.html#hero">HOME</a></li>
+            <li><a href="index.html#about">ABOUT</a></li>
+            <li><a href="index.html#plan">PLAN</a></li>
+            <li><a href="index.html#courses">COURSES</a></li>
+            <li><a href="index.html#my-account">MY ACCOUNT</a></li>
+            <li><a href="login.html">LOGIN</a></li>
+          </ul>
+          <div class="navbar-avatar-wrapper">
+            <i class="fas fa-user-circle navbar-avatar"></i>
+            <!-- Avatar icon -->
+            <div class="avatar-dropdown">
+              <a href="#my-account">My Account</a>
+              <a href="#join-now">Any Enquiry</a>
+            </div>
+          </div>
+          <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Sidebar Navigation -->
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">DreamsUnfold</div>
+        <i class="fas fa-times close-btn"></i>
+      </div>
+      <ul>
+        <li>
+          <a href="#"><i class="fas fa-book"></i> My Courses</a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+        </li>
+        <li>
+          <a href="#"
+            ><i class="fas fa-user"></i> Profile
+            <i class="fas fa-chevron-down" style="margin-left: auto"></i
+          ></a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-link"></i> Affiliate Link</a>
+        </li>
+        <li>
+          <a href="#"
+            ><i class="fas fa-users"></i> Referrals
+            <i class="fas fa-chevron-down" style="margin-left: auto"></i
+          ></a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-user-friends"></i> My Team</a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-tags"></i> Offers</a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-comments"></i> Community</a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-trophy"></i> Leaderboard</a>
+        </li>
+        <li>
+          <a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </li>
+      </ul>
+      <div class="sidebar-bottom-links">
+        <a
+          href="#"
+          class="btn"
+          style="
+            background-color: var(--golden-accent);
+            color: var(--primary-blue-dark);
+            border-radius: 5px;
+          "
+          >Upgrade →</a
+        >
+        <a
+          href="#"
+          class="btn"
+          style="
+            background-color: var(--primary-blue-light);
+            color: var(--white);
+            border-radius: 5px;
+            margin-top: 10px;
+          "
+          >Payout Request →</a
+        >
+      </div>
+    </div>
+
+    <!-- Overlay for when sidebar is open -->
+    <div class="overlay"></div>
+
+    <main>
+      <div class="registration-card">
+        <h2>Register for Diamond Achievers Club</h2>
+            <form action="/register" method="post" id="registrationForm" enctype="application/x-www-form-urlencoded">
+              <!-- CSRF Token (if using Express session) -->
+              <input type="hidden" name="_csrf" value="{{csrfToken}}"> 
+              
+              <div class="form-group">
+                  <label for="fullName"><i class="fas fa-user"></i> Full Name</label>
+                  <input type="text" id="fullName" name="fullName" 
+                      placeholder="Apna poora naam darj karein" required>
+                  <small class="error-message" id="fullNameError"></small>
+              </div>
+
+              <div class="form-group">
+                  <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
+                  <input type="email" id="email" name="email" 
+                      placeholder="Apna email address darj karein" required>
+                  <small class="error-message" id="emailError"></small>
+              </div>
+
+              <div class="form-group">
+                  <label for="mobileNumber"><i class="fas fa-mobile-alt"></i> Mobile Number</label>
+                  <input type="tel" id="mobileNumber" name="mobileNumber" 
+                      placeholder="Apna mobile number darj karein" 
+                      pattern="[6-9]{1}[0-9]{9}" 
+                      title="10-digit Indian mobile number"
+                      required>
+                  <small class="error-message" id="mobileNumberError"></small>
+              </div>
+
+              <div class="form-group">
+                  <label for="password"><i class="fas fa-lock"></i> Password</label>
+                  <input type="password" id="password" name="password" 
+                      placeholder="Minimum 8 characters, 1 number, 1 special char"
+                      required>
+                  <small class="error-message" id="passwordError"></small>
+              </div>
+
+              <div class="form-group">
+                  <label for="confirmPassword"><i class="fas fa-lock"></i> Confirm Password</label>
+                  <input type="password" id="confirmPassword" name="confirmPassword" 
+                      placeholder="Apna password confirm karein" required>
+                  <small class="error-message" id="confirmPasswordError"></small>
+              </div>
+
+              <div class="form-group">
+                  <label for="referralCode"><i class="fas fa-code"></i> Referral Code (Optional)</label>
+                  <input type="text" id="referralCode" name="referralCode" 
+                      placeholder="Referral code darj karein (agar koi hai)">
+              </div>
+
+              <div class="form-group">
+                  <label for="packageSelect"><i class="fas fa-box"></i> Select Package</label>
+                  <select id="packageSelect" name="packageSelect" required>
+                  <option value="">-- Apna Package Chunein --</option>
+                  <option value="mini">Mini Package (₹ 1000)</option>
+                  <option value="prime">Prime Package (₹ 2000)</option>
+                  <option value="supreme">Supreme Package (₹ 3000)</option>
+                  <option value="royal">Royal Package (₹ 5000)</option>
+                  <option value="dream-achiever">Dream Achiever Package (₹ 10000)</option>
+                  </select>
+                  <small class="error-message" id="packageSelectError"></small>
+              </div>
+              
+              <button type="submit" class="form-submit-btn">
+                  Register & Continue to Payment
+              </button>
+            </form>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <div class="footer-content-grid">
+          <div class="footer-column">
+            <h4>Quick Links</h4>
+            <ul>
+              <li><a href="index.html#hero">Home</a></li>
+              <li><a href="index.html#about-us">About Us</a></li>
+              <li><a href="index.html#join-now">Contact Us</a></li>
+              <li><a href="login.html">My Account</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h4>Policies</h4>
+            <ul>
+              <li><a href="#">Disclaimer</a></li>
+              <li><a href="#">Privacy Policy</a></li>
+              <li><a href="#">Refund Policy</a></li>
+              <li><a href="#">Terms & Conditions</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h4>Contact</h4>
+            <div class="contact-info">
+              <p><i class="fas fa-phone-alt"></i> +91 7991627062</p>
+              <p>
+                <i class="fas fa-envelope"></i> Diamondachieversclub
+                .in@gmail.com
+              </p>
+              <p><i class="fas fa-map-marker-alt"></i> Uttar Pradesh</p>
+            </div>
+          </div>
+        </div>
+        <div class="social-media">
+          <a href="#" target="_blank" aria-label="Facebook"
+            ><i class="fab fa-facebook-f"></i
+          ></a>
+          <a href="#" target="_blank" aria-label="Instagram"
+            ><i class="fab fa-instagram"></i
+          ></a>
+          <a href="#" target="_blank" aria-label="LinkedIn"
+            ><i class="fab fa-linkedin-in"></i
+          ></a>
+          <a href="#" target="_blank" aria-label="Twitter"
+            ><i class="fab fa-twitter"></i
+          ></a>
+        </div>
+        <p class="copyright">
+          &copy; 2025 Diamond Achievers Club. All rights reserved.
+        </p>
+      </div>
+    </footer>
+
+    <script type="module">
+      // Ensure DOM is fully loaded before running scripts
+      document.addEventListener("DOMContentLoaded", async function () {
+        // Firebase setup and authentication state listener is in the head script.
+        // Wait for Firebase Auth to be ready
+        const auth = window.firebaseAuth;
+        const db = window.firebaseDb;
+        const setDoc = window.setDoc;
+        const collection = window.collection;
+        const doc = window.doc;
+        const createUserWithEmailAndPassword =
+          window.createUserWithEmailAndPassword;
+        const showMessageBox = window.showMessageBox;
+        const getAuth = window.getAuth;
+
+        // --- Sidebar and Navbar Logic (Copied from index.html) ---
+        const hamburger = document.querySelector(".hamburger");
+        const sidebar = document.getElementById("sidebar");
+        const closeBtn = document.querySelector(".close-btn");
+        const overlay = document.querySelector(".overlay");
+        const navItems = document.querySelectorAll(".nav-links li a");
+        const sidebarLinks = document.querySelectorAll("#sidebar ul li a");
+        const avatarWrapper = document.querySelector(".navbar-avatar-wrapper");
+
+        function toggleSidebar() {
+          sidebar.classList.toggle("active");
+          hamburger.classList.toggle("active");
+          overlay.classList.toggle("active");
+          document.body.style.overflowY = sidebar.classList.contains("active")
+            ? "hidden"
+            : "auto";
+        }
+
+        hamburger.addEventListener("click", toggleSidebar);
+        closeBtn.addEventListener("click", toggleSidebar);
+        overlay.addEventListener("click", toggleSidebar);
+
+        sidebarLinks.forEach((link) => {
+          link.addEventListener("click", () => {
+            toggleSidebar();
+          });
+        });
+
+        avatarWrapper.addEventListener("click", function (event) {
+          event.stopPropagation();
+          this.classList.toggle("active");
+        });
+
+        document.addEventListener("click", function (event) {
+          if (!avatarWrapper.contains(event.target)) {
+            avatarWrapper.classList.remove("active");
+          }
+        });
+
+        // Set active link for desktop nav
+        navItems.forEach((link) => {
+          link.classList.remove("active-link");
+          if (link.getAttribute("href") === "registration.html") {
+            link.classList.add("active-link");
+          }
+        });
+
+        // --- Form Validation and Submission Logic with Firebase ---
+        const registrationForm = document.getElementById("registrationForm");
+
+        registrationForm.addEventListener("submit", async function (event) {
+          event.preventDefault(); // Default form submission ko rokein
+
+          let isValid = true;
+
+          // Pichhle error messages ko saaf karein
+          document
+            .querySelectorAll(".error-message")
+            .forEach((el) => (el.textContent = ""));
+
+          // 1. Full Name Validation
+          const fullName = document.getElementById("fullName");
+          if (fullName.value.trim() === "") {
+            document.getElementById("fullNameError").textContent =
+              "Full Name zaroori hai.";
+            isValid = false;
+          }
+
+          // 2. Email Validation
+          const emailInput = document.getElementById("email"); // Rename kiya gaya taaki Firebase mein `email` se takraye nahi
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (emailInput.value.trim() === "") {
+            document.getElementById("emailError").textContent =
+              "Email Address zaroori hai.";
+            isValid = false;
+          } else if (!emailRegex.test(emailInput.value.trim())) {
+            document.getElementById("emailError").textContent =
+              "Kripya ek valid email address darj karein.";
+            isValid = false;
+          }
+
+          // 3. Mobile Number Validation
+          const mobileNumber = document.getElementById("mobileNumber");
+          const mobileRegex = /^[0-9]{10}$/; // +91 ke baad 10 ank maanta hai
+          if (mobileNumber.value.trim() === "") {
+            document.getElementById("mobileNumberError").textContent =
+              "Mobile Number zaroori hai.";
+            isValid = false;
+          } else if (!mobileRegex.test(mobileNumber.value.trim())) {
+            document.getElementById("mobileNumberError").textContent =
+              "Kripya ek valid 10-digit mobile number darj karein.";
+            isValid = false;
+          }
+
+          // 4. Password Validation
+          const passwordInput = document.getElementById("password"); // Rename kiya gaya
+          if (passwordInput.value.length < 6) {
+            document.getElementById("passwordError").textContent =
+              "Password kam se kam 6 characters ka hona chahiye.";
+            isValid = false;
+          }
+
+          // 5. Confirm Password Validation
+          const confirmPassword = document.getElementById("confirmPassword");
+          if (confirmPassword.value === "") {
+            document.getElementById("confirmPasswordError").textContent =
+              "Kripya apna password confirm karein.";
+            isValid = false;
+          } else if (passwordInput.value !== confirmPassword.value) {
+            document.getElementById("confirmPasswordError").textContent =
+              "Passwords match nahi karte.";
+            isValid = false;
+          }
+
+          // 6. Select Package Validation
+          const packageSelect = document.getElementById("packageSelect");
+          if (packageSelect.value === "") {
+            document.getElementById("packageSelectError").textContent =
+              "Kripya ek package choose kare.";
+            isValid = false;
+          }
+
+          // Agar sabhi client-side validations pass ho jaate hain, toh Firebase registration ke saath aage badhein
+          if (isValid) {
+            const selectedPackage = packageSelect.value;
+            const packagePrice = parseInt(
+              packageSelect.options[packageSelect.selectedIndex].dataset.price
+            );
+            const referralCode =
+              document.getElementById("referralCode").value || "N/A";
+            const fullMobileNumber = "+91" + mobileNumber.value;
+
+            // Loading message dikhayein
+            showMessageBox("User register kiya ja raha hai...");
+
+            try {
+              // Email aur Password ke saath user banayein
+              const userCredential = await createUserWithEmailAndPassword(
+                getAuth(),
+                emailInput.value.trim(),
+                passwordInput.value
+              );
+              const user = userCredential.user;
+
+              // Naye bane hue user ka UID upyog karein
+              const userId = user.uid;
+
+              // Firebase Firestore mein additional user data store karein
+              const userDocRef = doc(
+                db,
+                `artifacts/${appId}/users/${userId}/registrations`,
+                "profile"
+              ); // User data ke liye 'profile' ko fixed document ID ke roop mein upyog karein
+              await setDoc(userDocRef, {
+                fullName: fullName.value.trim(),
+                email: emailInput.value.trim(),
+                mobileNumber: fullMobileNumber,
+                selectedPackage: selectedPackage,
+                packagePrice: packagePrice, // Add package price
+                referralCode: referralCode,
+                registrationDate: new Date(),
+                paymentStatus: "pending", // Payment status shuru mein 'pending'
+              });
+
+              showMessageBox(
+                "Registration safal raha! Payment par redirect kiya ja raha hai..."
+              );
+              console.log("User registered aur data save kiya gaya:", {
+                userId,
+                email: emailInput.value,
+                selectedPackage,
+                packagePrice,
+              });
+
+              // Payment.html par redirect karein selected package aur user ID ke saath
+              setTimeout(() => {
+                window.location.href = `payment.html?package=${encodeURIComponent(
+                  selectedPackage
+                )}&price=${packagePrice}&userId=${userId}&email=${encodeURIComponent(
+                  emailInput.value.trim()
+                )}&mobile=${encodeURIComponent(fullMobileNumber)}`;
+              }, 1500);
+            } catch (error) {
+              console.error("Firebase Registration Error:", error);
+              let errorMessage =
+                "Registration safal nahi raha. Kripya phir se koshish karein.";
+              switch (error.code) {
+                case "auth/email-already-in-use":
+                  errorMessage =
+                    "Yeh email address pehle se hi registered hai. Kripya login karein ya doosra email upyog karein.";
+                  break;
+                case "auth/invalid-email":
+                  errorMessage = "Email address valid nahi hai.";
+                  break;
+                case "auth/operation-not-allowed":
+                  errorMessage =
+                    "Email/password accounts enabled nahi hain. Kripya support team se sampark karein.";
+                  break;
+                case "auth/weak-password":
+                  errorMessage =
+                    "Password bahut kamjor hai. Kripya ek majboot password chunein.";
+                  break;
+                default:
+                  errorMessage = `Registration safal nahi raha: ${error.message}`;
+                  break;
+              }
+              showMessageBox(errorMessage);
+            }
+          } else {
+            // Agar client-side validation fail hoti hai toh pehle error par scroll karein
+            const firstError = document.querySelector(
+              ".error-message:not(:empty)"
+            );
+            if (firstError) {
+              firstError.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diamond Achievers Club - Login</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN for easy icon integration -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Google Font - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./stylesheet/login.Style.css">
+</head>
+<body class="flex flex-col min-h-screen">
+    <!-- Custom Message Box -->
+    <div id="messageBox" class="message-box">
+        <p id="messageText"></p>
+        <button onclick="document.getElementById('messageBox').style.display='none'">OK</button>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="bg-gradient-to-r from-[#1a1b3a] to-[#461964] text-white p-4 shadow-lg">
+        <nav class="container mx-auto flex justify-between items-center px-4 sm:px-6 lg:px-8">
+            <div class="text-xl sm:text-2xl font-bold tracking-wider">
+                Diamond Achievers Club
+            </div>
+            <div class="hidden md:block"> <!-- Hide on small screens, show on medium and up -->
+                <a href="#" class="px-3 py-2 rounded-full hover:bg-white hover:text-[#461964] transition duration-300 text-sm sm:text-base">Home</a>
+                <a href="#" class="px-3 py-2 rounded-full hover:bg-white hover:text-[#461964] transition duration-300 text-sm sm:text-base">About Us</a>
+                <a href="#" class="px-3 py-2 rounded-full hover:bg-white hover:text-[#461964] transition duration-300 text-sm sm:text-base">Contact</a>
+            </div>
+            <!-- Mobile Menu Button (Hamburger) -->
+            <button class="md:hidden text-white focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            </button>
+        </nav>
+        <!-- Mobile Menu (Hidden by default) -->
+        <div class="md:hidden mt-2 flex flex-col items-center">
+            <a href="#" class="block w-full text-center py-2 px-4 hover:bg-white hover:text-[#461964] transition duration-300 rounded-md">Home</a>
+            <a href="#" class="block w-full text-center py-2 px-4 hover:bg-white hover:text-[#461964] transition duration-300 rounded-md">About Us</a>
+            <a href="#" class="block w-full text-center py-2 px-4 hover:bg-white hover:text-[#461964] transition duration-300 rounded-md">Contact</a>
+        </div>
+    </header>
+
+    <!-- Main Content - Split Screen Layout -->
+    <main class="flex-grow flex flex-col md:flex-row items-center justify-center p-4 sm:p-6 lg:p-8">
+        <!-- Left Side: Login Form -->
+        <div class="w-full md:w-1/2 flex items-center justify-center p-4 md:p-8 order-2 md:order-1">
+            <div class="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-xl max-w-sm w-full border border-white border-opacity-20">
+                <div class="flex justify-center mb-6">
+                    <!-- Circular User Avatar Icon -->
+                    <div class="bg-gradient-to-br from-pink-500 to-purple-700 p-3 rounded-full shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user text-white">
+                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <h2 class="text-2xl sm:text-3xl font-bold text-center text-white mb-6 sm:mb-8">Login</h2>
+
+                <form action="/login" method="POST" id="loginForm" class="space-y-5 sm:space-y-6">
+                    <!-- Username/Email Field -->
+                    <div class="relative">
+                        <input type="email" id="email" name="email" placeholder="Email" class="w-full pl-10 pr-4 py-2 sm:py-3 rounded-xl bg-white bg-opacity-20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500 transition duration-300 border border-white border-opacity-30">
+                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.29 6.29a1 1 0 0 1-1.42 0L2 7"/></svg>
+                        </span>
+                    </div>
+
+                    <!-- Password Field -->
+                    <div class="relative">
+                        <input type="password" id="password" name="password" placeholder="Password" class="w-full pl-10 pr-10 py-2 sm:py-3 rounded-xl bg-white bg-opacity-20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500 transition duration-300 border border-white border-opacity-30">
+                        <span class="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-gray-300" id="togglePassword">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off hidden" id="eyeOff"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.54 18.54 0 0 1 2.21-3.6l-1.61-1.61A10.29 10.29 0 0 0 1 12c0 1.5 1.5 4.5 5 4.5"/><path d="M4.93 4.93A10 10 0 0 1 12 4c7 0 11 8 11 8a18.54 18.54 0 0 1-2.21 3.6l-1.61-1.61Z"/><path d="m2 2 20 20"/><path d="M9.9 9.9a3 3 0 0 1 4.24 4.24"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye" id="eyeOn"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </span>
+                    </div>
+
+                    <!-- Remember Me & Forgot Password -->
+                    <div class="flex justify-between items-center text-xs sm:text-sm">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="rememberMe" name="rememberMe" class="form-checkbox h-3 w-3 sm:h-4 sm:w-4 text-pink-600 rounded focus:ring-pink-500 transition duration-300 bg-white bg-opacity-20 border-white border-opacity-30">
+                            <label for="rememberMe" class="ml-2 text-gray-300">Remember me</label>
+                        </div>
+                        <a href="#" class="text-pink-300 hover:text-pink-500 transition duration-300">Forgot password?</a>
+                    </div>
+
+                    <!-- Login Button -->
+                     <button class="w-full py-2 sm:py-3 rounded-xl font-semibold btn-gradient text-white text-base sm:text-lg" style="display: inline-block; text-align: center;">
+                        Go to Dashboard
+                     </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right Side: Welcome Section with Gradient Wave -->
+        <div class="w-full md:w-1/2 flex flex-col items-center justify-center p-6 md:p-12 text-center relative h-64 md:h-auto min-h-[250px] md:min-h-[500px] lg:min-h-[600px] rounded-2xl md:rounded-l-none md:rounded-r-2xl overflow-hidden shadow-xl order-1 md:order-2 mt-8 md:mt-0">
+            <div class="absolute inset-0 gradient-wave-bg z-0"></div>
+            <div class="relative z-10 p-4">
+                <h1 id="welcomeText" class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white mb-4 typing-animation overflow-hidden whitespace-nowrap border-r-4 border-r-white pr-2 max-w-full"></h1>
+                <p class="text-base sm:text-lg text-gray-200 mb-6 sm:mb-8 max-w-md mx-auto">
+                    Welcome to the exclusive community of Diamond Achievers. Please log in to continue your journey.
+                </p>
+                <a href="#" class="px-6 py-2 sm:px-8 sm:py-3 rounded-full bg-white text-[#461964] font-semibold text-base sm:text-lg shadow-lg hover:bg-gray-200 transition duration-300">
+                    Sign up for new users
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gradient-to-r from-[#1a1b3a] to-[#461964] text-white p-4 text-center text-xs sm:text-sm mt-auto shadow-inner">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            &copy; 2025 Diamond Achievers Club. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Firebase SDKs and consolidated JavaScript -->
+     <script src="./javaScript/login.Script.js"></script>
+</body>
+</html>
+</body>
+</html>

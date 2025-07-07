@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Affiliate Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scrolling */
+        }
+        /* Custom styles for animations if needed beyond Tailwind */
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: 360deg; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app-root" class="min-h-screen flex items-center justify-center bg-gray-100">
+        <!-- Loading spinner placeholder -->
+        <div class="text-center">
+            <div class="animate-spin-slow rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
+            <p class="text-gray-700 text-xl">Loading dashboard...</p>
+        </div>
+    </div>
+    <script>
+  const __app_id = "marketingwebsite-560b3";
+  const __initial_auth_token = null;
+</script>
+
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
+
+    <!-- Consolidated JavaScript with Firebase SDKs -->
+    <script type="module">
+        // Import all members from Firebase modules as namespaces
+        import * as firebaseAppModule from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import * as firebaseAuthModule from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import * as firestoreModule from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import analytics module
+        import * as firebaseAnalyticsModule from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+
+
+        // Global references for Firebase
+        let firebaseApp;
+        let db;
+        let auth;
+        let analytics; // Add analytics global variable
+        let currentUser = null;
+        let userId = null;
+        let isAuthReady = false;
+        let notifications = []; // Global notification state
+
+        // Utility to generate a random ID for unauthenticated users if needed
+        const generateRandomId = () => crypto.randomUUID();
+
+        // Helper to format currency (Updated for INR)
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+        };
+
+        // --- Notification System ---
+        const addNotification = (message, type = 'info') => {
+            const newNotification = { id: Date.now(), message, type };
+            notifications.push(newNotification);
+            renderNotifications(); // Re-render notifications
+            setTimeout(() => {
+                notifications = notifications.filter(n => n.id !== newNotification.id);
+                renderNotifications(); // Re-render to remove notification
+            }, 5000); // Notifications disappear after 5 seconds
+        };
+
+        const renderNotifications = () => {
+            let notificationContainer = document.getElementById('notification-system');
+            if (!notificationContainer) {
+                notificationContainer = document.createElement('div');
+                notificationContainer.id = 'notification-system';
+                notificationContainer.className = 'fixed bottom-4 right-4 z-50 w-80';
+                document.body.appendChild(notificationContainer);
+            }
+            notificationContainer.innerHTML = ''; // Clear existing
+            notifications.forEach(n => {
+                let bgColor = 'bg-blue-500';
+                if (n.type === 'success') bgColor = 'bg-green-500';
+                if (n.type === 'error') bgColor = 'bg-red-500';
+                if (n.type === 'warning') bgColor = 'bg-yellow-500';
+
+                const notificationDiv = document.createElement('div');
+                notificationDiv.className = `${bgColor} text-white px-4 py-2 rounded-md shadow-lg mb-2 flex items-center justify-between`;
+                notificationDiv.innerHTML = `
+                    <span>${n.message}</span>
+                    <button class="ml-4 text-white hover:text-gray-200" data-id="${n.id}">&times;</button>
+                `;
+                notificationDiv.querySelector('button').onclick = () => {
+                    notifications = notifications.filter(notif => notif.id !== n.id);
+                    renderNotifications();
+                };
+                notificationContainer.appendChild(notificationDiv);
+            });
+        };
+
+        // --- Modals (for withdrawal system) ---
+        let currentModal = null; // To keep track of the currently open modal
+
+        const openModal = (message, type = "info") => {
+            if (currentModal) closeModal(); // Close existing modal if any
+
+            const modalContainer = document.createElement('div');
+            modalContainer.id = 'custom-modal';
+            modalContainer.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
+
+            let titleColor = 'text-blue-600';
+            if (type === 'success') titleColor = 'text-green-600';
+            if (type === 'error') titleColor = 'text-red-600';
+
+            modalContainer.innerHTML = `
+                <div class="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center">
+                    <h3 class="text-2xl font-bold mb-4 ${titleColor}">
+                        ${type === 'success' ? 'Success!' : type === 'error' ? 'Error!' : 'Info'}
+                    </h3>
+                    <p class="text-gray-700 mb-6">${message}</p>
+                    <button id="modal-ok-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-xl shadow-md transition duration-300">
+                        OK
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modalContainer);
+            currentModal = modalContainer; // Store reference to the current modal
+
+            document.getElementById('modal-ok-button').onclick = closeModal;
+        };
+
+        const closeModal = () => {
+            if (currentModal) {
+                document.body.removeChild(currentModal);
+                currentModal = null;
+            }
+        };
+
+        // --- Firebase Initialization ---
+        const initializeFirebase = async () => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Use the provided firebaseConfig directly
+            const firebaseConfig = {
+                apiKey: "AIzaSyCNgeiEWmaWfjqpDP_m-eidvupccZlFwFo",
+                authDomain: "marketingwebsite-560b3.firebaseapp.com",
+                projectId: "marketingwebsite-560b3",
+                storageBucket: "marketingwebsite-560b3.appspot.com",
+                messagingSenderId: "72203422246",
+                appId: "1:72203422246:web:0d39288132115a9f7774e7",
+                measurementId: "G-ZBBFCKM1LZ"
+            };
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            try {
+                // Access imported functions via their module namespaces
+                firebaseApp = firebaseAppModule.initializeApp(firebaseConfig);
+                db = firestoreModule.getFirestore(firebaseApp);
+                auth = firebaseAuthModule.getAuth(firebaseApp);
+                analytics = firebaseAnalyticsModule.getAnalytics(firebaseApp); // Initialize analytics
+
+                firebaseAuthModule.onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        console.log("User authenticated:", user.uid);
+                        currentUser = user;
+                        userId = user.uid;
+                        // Create or update user profile in Firestore
+                        const userDocRef = firestoreModule.doc(db, `artifacts/marketingwebsite-560b3/users/${userId}/privateData/profile`);
+                        const userDocSnap = await firestoreModule.getDoc(userDocRef);
+
+                        if (!userDocSnap.exists()) {
+                            console.log("Creating new user profile...");
+                            await firestoreModule.setDoc(userDocRef, {
+                                email: user.email || 'anonymous@example.com',
+                                displayName: user.displayName || 'Guest User',
+                                photoURL: user.photoURL || `https://placehold.co/150x150/CCE0FF/000000?text=${user.displayName ? user.displayName[0] : 'G'}`,
+                                mobileNumber: '', // New field
+                                earnings: 0,
+                                referrals: 0,
+                                purchasedCourses: [],
+                                teamSize: 0,
+                                activePlan: 'Free Tier',
+                                rank: 'Newbie',
+                                leaderboardPosition: 999,
+                                affiliateLink: `https://your-platform.com/join?ref=${user.uid}`,
+                                createdAt: firestoreModule.serverTimestamp(),
+                            });
+                        }
+                    } else {
+                        console.log("No user authenticated. Signing in anonymously...");
+                        currentUser = null;
+                        try {
+                            if (initialAuthToken) {
+                                await firebaseAuthModule.signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await firebaseAuthModule.signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Error during anonymous sign-in or custom token sign-in:", error);
+                            userId = generateRandomId(); // Fallback
+                        }
+                    }
+                    isAuthReady = true;
+                    renderApp(); // Re-render app once auth is ready
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                // Display error to user if initialization fails critically
+                document.getElementById('app-root').innerHTML = `
+                    <div class="text-center text-red-600">
+                        <p class="text-2xl font-bold mb-4">Error loading application.</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        };
+
+        // --- Page States ---
+        let activePage = 'Dashboard';
+        let userProfile = null;
+        let bankDetails = null; // New state for bank details
+        let chartInstances = {}; // To manage Chart.js instances
+
+        const setChartRef = (id, chart) => {
+            if (chartInstances[id]) {
+                chartInstances[id].destroy(); // Destroy existing chart if any
+            }
+            chartInstances[id] = chart;
+        };
+
+        // --- Render Functions for each section ---
+
+        // Dashboard Overview
+        const renderDashboardOverview = () => {
+            const stats = [
+                { title: 'Current Earnings', value: formatCurrency(userProfile?.earnings || 0), icon: 'M17 9.5a2 2 0 10-4 0v4a2 2 0 104 0M7 13.5a2 2 0 10-4 0v4a2 2 0 104 0M10 14h4M6 18h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z', bgColor: 'bg-green-100', textColor: 'text-green-600' },
+                { title: 'Total Referrals', value: userProfile?.referrals || 0, icon: 'M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M12 9a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z', bgColor: 'bg-purple-100', textColor: 'text-purple-600' },
+                { title: 'Purchased Courses', value: userProfile?.purchasedCourses?.length || 0, icon: 'M12 6.253v13.5m0-13.5C10.835 5.474 9.111 5 7 5 3.573 5 1 6.536 1 9c0 2.215 3.36 4.053 7.021 4.417M12 6.253c1.165-.776 2.889-1.253 5-1.253 3.427 0 6 1.536 6 4 0 2.215-3.36 4.053-7.021 4.417M12 6.253v13.5', bgColor: 'bg-yellow-100', textColor: 'text-yellow-600' },
+                { title: 'Team Size', value: userProfile?.teamSize || 0, icon: 'M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2m7-9a4 4 0 11-8 0 4 4 0 018 0zM21 6h-7M12 12h.01M21 12h-7', bgColor: 'bg-blue-100', textColor: 'text-blue-600' },
+                { title: 'Active Plan', value: userProfile?.activePlan || 'N/A', icon: 'M9 12l2 2 4-4m5.618-4.504A9.956 9.956 0 0012 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10A9.956 9.956 0 0018.382 7.496z', bgColor: 'bg-indigo-100', textColor: 'text-indigo-600' },
+                { title: 'Rank/Level', value: userProfile?.rank || 'N/A', icon: 'M12 11.233l-5.618 2.76 1.077-6.262L3.627 6.42a1 1 0 01.378-1.74l6.19-.899 2.76-5.618a1 1 0 011.74 0l2.76 5.618 6.19.899a1 1 0 01.378 1.74l-4.432 4.311 1.077 6.262L12 11.233z', bgColor: 'bg-red-100', textColor: 'text-red-600' },
+                { title: 'Leaderboard Position', value: userProfile?.leaderboardPosition || 'N/A', icon: 'M10 20v-6a2 2 0 012-2h4a2 2 0 012 2v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v12m-6 3a1 1 0 01-1-1V4a1 1 0 011-1h4a1 1 0 011 1v12a1 1 0 01-1 1h-4z', bgColor: 'bg-pink-100', textColor: 'text-pink-600' },
+            ];
+
+            let html = `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Dashboard Overview</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            `;
+            stats.forEach(stat => {
+                html += `
+                    <div class="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start ${stat.bgColor} ${stat.textColor} transform transition-transform duration-300 hover:scale-105">
+                        <div class="p-4 rounded-full ${stat.bgColor.replace('bg-', 'bg-opacity-20 bg-')}">
+                            <svg class="w-8 h-8 ${stat.textColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${stat.icon}"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold mt-4 text-gray-800">${stat.title}</h3>
+                        <p class="text-4xl font-bold mt-2" id="stat-${stat.title.replace(/\s/g, '-')}-value">${stat.value}</p>
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                    <div class="mt-12" id="income-breakdown-section"></div>
+                </div>
+            `;
+            return html;
+        };
+
+        const animateStatCounter = (id, endValue, isCurrency = false, duration = 2000) => {
+            const element = document.getElementById(id);
+            if (!element) return;
+
+            let start = 0;
+            const end = typeof endValue === 'number' ? endValue : parseFloat(endValue.replace(/[^0-9.-]+/g,""));
+            if (isNaN(end)) {
+                element.textContent = endValue;
+                return;
+            }
+
+            let current = start;
+            const increment = (end - start) / (duration / 16); // ~60fps
+
+            const timer = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+                    clearInterval(timer);
+                    element.textContent = isCurrency ? formatCurrency(end) : Math.round(end);
+                } else {
+                    element.textContent = isCurrency ? formatCurrency(current) : Math.round(current);
+                }
+            }, 16);
+        };
+
+
+        // My Courses
+        const renderMyCourses = () => {
+            const courseData = [
+                { id: 1, title: 'Introduction to Affiliate Marketing', progress: 75, instructor: 'John Doe' },
+                { id: 2, title: 'Advanced SEO Strategies', progress: 40, instructor: 'Jane Smith' },
+                { id: 3, title: 'Content Creation for Success', progress: 90, instructor: 'David Lee' },
+                { id: 4, title: 'Social Media Mastery', progress: 20, instructor: 'Sarah Connor' },
+            ];
+
+            let html = `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">My Courses</h2>
+            `;
+            if (courseData.length === 0) {
+                html += `<p class="text-gray-600">You haven't enrolled in any courses yet.</p>`;
+            } else {
+                html += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+                courseData.forEach(course => {
+                    html += `
+                        <div class="bg-white rounded-2xl shadow-lg p-6 transform transition-transform duration-300 hover:scale-105">
+                            <h3 class="text-2xl font-bold text-gray-800 mb-2">${course.title}</h3>
+                            <p class="text-gray-600 mb-4">Instructor: ${course.instructor}</p>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="bg-blue-600 h-3 rounded-full" style="width: ${course.progress}%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-2">${course.progress}% Complete</p>
+                            <button class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition duration-300">
+                                Continue Learning
+                            </button>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            html += `</div>`;
+            return html;
+        };
+
+        // My Referrals
+        let referralUnsubscribe = null;
+        let referralInterval = null;
+        const renderMyReferrals = () => {
+            if (!db || !userId || !isAuthReady) return `<p class="text-gray-600">Loading referrals...</p>`;
+
+            // Clear previous listeners/intervals to avoid duplicates
+            if (referralUnsubscribe) referralUnsubscribe();
+            if (referralInterval) clearInterval(referralInterval);
+
+            // Simulate real-time updates for referrals
+            referralUnsubscribe = firestoreModule.onSnapshot(
+                firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/referrals`),
+                (snapshot) => {
+                    const referralList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    updateReferralsTable(referralList);
+                },
+                (error) => console.error("Error fetching referrals:", error)
+            );
+
+            // Simulate adding a new referral every 15 seconds for demo purposes
+            const addMockReferral = async () => {
+                if (!db || !userId) return;
+                const newReferral = {
+                    name: `Referral ${Math.floor(Math.random() * 1000)}`,
+                    joiningDate: firestoreModule.serverTimestamp(),
+                    earnings: Math.floor(Math.random() * 50) + 10, // INR 10-60
+                };
+                await firestoreModule.addDoc(firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/referrals`), newReferral);
+
+                // Update user's total referrals count
+                const userDocRef = firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/profile`);
+                const userDocSnap = await firestoreModule.getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    const currentReferrals = userDocSnap.data().referrals || 0;
+                    await firestoreModule.updateDoc(userDocRef, { referrals: currentReferrals + 1 });
+                }
+            };
+            referralInterval = setInterval(addMockReferral, 15000);
+
+            return `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">My Referrals</h2>
+                    <div id="referrals-content" class="overflow-x-auto bg-white rounded-2xl shadow-lg p-6">
+                        <p class="text-gray-600">Loading referrals data...</p>
+                    </div>
+                </div>
+            `;
+        };
+
+        const updateReferralsTable = (referrals) => {
+            const contentDiv = document.getElementById('referrals-content');
+            if (!contentDiv) return;
+
+            if (referrals.length === 0) {
+                contentDiv.innerHTML = `<p class="text-gray-600">No referrals yet. Share your affiliate link to invite new users!</p>`;
+                return;
+            }
+
+            let tableHtml = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                                Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Joining Date
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl">
+                                Earnings
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            referrals.forEach(referral => {
+                tableHtml += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${referral.name}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${referral.joiningDate?.toDate ? new Date(referral.joiningDate.toDate()).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                            ${formatCurrency(referral.earnings)}
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += `
+                    </tbody>
+                </table>
+            `;
+            contentDiv.innerHTML = tableHtml;
+        };
+
+
+        // Team Overview
+        const renderTeamOverview = () => {
+            const teamMembers = [
+                { id: 1, name: 'Alice Smith', level: 1, status: 'Active' },
+                { id: 2, name: 'Bob Johnson', level: 1, status: 'Active' },
+                { id: 3, name: 'Charlie Brown', level: 2, status: 'Pending' },
+                { id: 4, name: 'Diana Prince', level: 1, status: 'Active' },
+            ];
+
+            let html = `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Team Overview</h2>
+            `;
+            if (teamMembers.length === 0) {
+                html += `<p class="text-gray-600">Your team is empty. Recruit new members!</p>`;
+            } else {
+                html += `
+                    <div class="overflow-x-auto bg-white rounded-2xl shadow-lg p-6">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                                        Name
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Level
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl">
+                                        Status
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                `;
+                teamMembers.forEach(member => {
+                    const statusClass = member.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+                    html += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                ${member.name}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                ${member.level}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                                    ${member.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            html += `</div>`;
+            return html;
+        };
+
+        // Income Breakdown (Chart.js integration)
+        const renderIncomeBreakdown = () => {
+            // Destroy existing charts before rendering new ones
+            Object.values(chartInstances).forEach(chart => chart.destroy());
+            chartInstances = {}; // Clear the object
+
+            setTimeout(() => { // Delay to ensure canvas elements are in DOM
+                createChart('dailyEarningsChart', 'bar', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], [500, 750, 600, 900, 800, 1000, 700], 'Daily Earnings (INR)');
+                createChart('weeklyEarningsChart', 'bar', ['Week 1', 'Week 2', 'Week 3', 'Week 4'], [3000, 4500, 3800, 5200], 'Weekly Earnings (INR)');
+                createChart('monthlyEarningsChart', 'bar', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], [12000, 15000, 13500, 17000, 16000, 19000], 'Monthly Earnings (INR)');
+            }, 0); // Small delay to allow DOM to render
+
+            return `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Income Breakdown</h2>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-2xl shadow-lg p-6">
+                            <canvas id="dailyEarningsChart"></canvas>
+                        </div>
+                        <div class="bg-white rounded-2xl shadow-lg p-6">
+                            <canvas id="weeklyEarningsChart"></canvas>
+                        </div>
+                        <div class="bg-white rounded-2xl shadow-lg p-6">
+                            <canvas id="monthlyEarningsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const createChart = (chartId, type, labels, data, labelText) => {
+            const ctx = document.getElementById(chartId);
+            if (ctx) {
+                const newChart = new Chart(ctx, {
+                    type: type,
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: labelText,
+                                data: data,
+                                backgroundColor: type === 'bar' ? 'rgba(59, 130, 246, 0.6)' : [
+                                    'rgba(255, 99, 132, 0.6)',
+                                    'rgba(54, 162, 235, 0.6)',
+                                    'rgba(255, 206, 86, 0.6)',
+                                    'rgba(75, 192, 192, 0.6)',
+                                    'rgba(153, 102, 255, 0.6)',
+                                    'rgba(255, 159, 64, 0.6)',
+                                ],
+                                borderColor: type === 'bar' ? 'rgba(59, 130, 246, 1)' : [
+                                    'rgba(255, 99, 132, 1)',
+                                    'rgba(54, 162, 235, 1)',
+                                    'rgba(255, 206, 86, 1)',
+                                    'rgba(75, 192, 192, 1)',
+                                    'rgba(153, 102, 255, 1)',
+                                    'rgba(255, 159, 64, 1)',
+                                ],
+                                borderWidth: 1,
+                                fill: true,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: type === 'pie' ? 'right' : 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: labelText,
+                            },
+                        },
+                        scales: type === 'bar' ? {
+                            y: {
+                                beginAtZero: true,
+                            },
+                        } : {},
+                    },
+                });
+                setChartRef(chartId, newChart);
+            }
+        };
+
+        // Transaction History
+        let transactionUnsubscribe = null;
+        let transactionInterval = null;
+        const renderTransactionHistory = () => {
+            if (!db || !userId || !isAuthReady) return `<p class="text-gray-600">Loading transactions...</p>`;
+
+            // Clear previous listeners/intervals
+            if (transactionUnsubscribe) transactionUnsubscribe();
+            if (transactionInterval) clearInterval(transactionInterval);
+
+            transactionUnsubscribe = firestoreModule.onSnapshot(
+                firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/transactions`),
+                (snapshot) => {
+                    const transactionList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    transactionList.sort((a, b) => (b.date?.toDate ? b.date.toDate().getTime() : 0) - (a.date?.toDate ? a.date.toDate().getTime() : 0));
+                    updateTransactionTable(transactionList);
+                },
+                (error) => console.error("Error fetching transactions:", error)
+            );
+
+            // Simulate adding earnings every few seconds for demo purposes
+            const addMockEarnings = async () => {
+                if (!db || !userId) return;
+                const earningAmount = Math.floor(Math.random() * 200) + 50; // INR 50-250
+                await firestoreModule.addDoc(firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/transactions`), {
+                    type: 'earning',
+                    description: 'Commission from referral sale',
+                    amount: earningAmount,
+                    date: firestoreModule.serverTimestamp(),
+                });
+                // Update user's total earnings
+                const userDocRef = firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/profile`);
+                const userDocSnap = await firestoreModule.getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    const currentEarnings = userDocSnap.data().earnings || 0;
+                    await firestoreModule.updateDoc(userDocRef, { earnings: currentEarnings + earningAmount });
+                }
+            };
+            transactionInterval = setInterval(addMockEarnings, 10000); // Add new earning every 10 seconds
+
+            return `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Transaction History</h2>
+                    <div id="transactions-content" class="overflow-x-auto bg-white rounded-2xl shadow-lg p-6">
+                        <p class="text-gray-600">Loading transaction data...</p>
+                    </div>
+                </div>
+            `;
+        };
+
+        const updateTransactionTable = (transactions) => {
+            const contentDiv = document.getElementById('transactions-content');
+            if (!contentDiv) return;
+
+            if (transactions.length === 0) {
+                contentDiv.innerHTML = `<p class="text-gray-600">No transactions recorded yet.</p>`;
+                return;
+            }
+
+            let tableHtml = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                                Type
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Description
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl">
+                                Date
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            transactions.forEach(tx => {
+                const amountClass = tx.type === 'earning' ? 'text-green-600' : 'text-red-600';
+                const amountSign = tx.type === 'earning' ? '+' : '-';
+                tableHtml += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">
+                            ${tx.type}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${tx.description}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${amountClass}">
+                            ${amountSign}${formatCurrency(tx.amount)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${tx.date?.toDate ? new Date(tx.date.toDate()).toLocaleString() : 'N/A'}
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += `
+                    </tbody>
+                </table>
+            `;
+            contentDiv.innerHTML = tableHtml;
+        };
+
+
+        // Affiliate Link
+        const renderAffiliateLink = () => {
+            const link = userProfile?.affiliateLink || 'Generating link...';
+            let html = `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Affiliate Link</h2>
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <p class="text-lg text-gray-700 mb-4">Share your unique affiliate link to invite new users and earn commissions!</p>
+                        <div class="flex items-center space-x-4 flex-wrap">
+                            <input
+                                type="text"
+                                id="affiliate-link-input"
+                                readonly
+                                value="${link}"
+                                class="flex-1 p-3 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px] mb-4 md:mb-0"
+                            />
+                            <button
+                                id="copy-affiliate-link"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition duration-300 ease-in-out transform hover:scale-105"
+                            >
+                                Copy Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return html;
+        };
+
+        const attachAffiliateLinkEvents = () => {
+            const copyButton = document.getElementById('copy-affiliate-link');
+            if (copyButton) {
+                copyButton.onclick = () => {
+                    const linkInput = document.getElementById('affiliate-link-input');
+                    if (linkInput && linkInput.value) {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = linkInput.value;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {
+                            document.execCommand('copy');
+                            addNotification('Affiliate link copied to clipboard!', 'success');
+                        } catch (err) {
+                            console.error('Failed to copy text: ', err);
+                            addNotification('Failed to copy link. Please copy manually.', 'error');
+                        }
+                        document.body.removeChild(textArea);
+                    }
+                };
+            }
+        };
+
+        // Withdrawal System
+        let withdrawalUnsubscribe = null;
+        const renderWithdrawal = () => {
+            const currentEarnings = userProfile?.earnings || 0;
+            let html = `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Withdrawal System</h2>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Request Withdrawal</h3>
+                        <p class="text-lg text-gray-700 mb-4">Available Balance: <span class="font-semibold text-green-600">${formatCurrency(currentEarnings)}</span></p>
+                        <form id="withdrawal-form" class="space-y-4">
+                            <div>
+                                <label for="withdrawalAmount" class="block text-gray-700 text-sm font-bold mb-2">
+                                    Amount to Withdraw:
+                                </label>
+                                <input
+                                    type="number"
+                                    id="withdrawalAmount"
+                                    step="0.01"
+                                    min="0.01"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., 500.00"
+                                    required
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                            >
+                                Submit Withdrawal Request
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Withdrawal History</h3>
+                        <div id="withdrawal-history-content" class="overflow-x-auto">
+                            <p class="text-gray-600">Loading withdrawal history...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return html;
+        };
+
+        const attachWithdrawalEvents = () => {
+            const withdrawalForm = document.getElementById('withdrawal-form');
+            if (withdrawalForm) {
+                withdrawalForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const amountInput = document.getElementById('withdrawalAmount');
+                    const withdrawalAmount = parseFloat(amountInput.value);
+                    const currentEarnings = userProfile?.earnings || 0;
+
+                    if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
+                        openModal("Please enter a valid amount.", "error");
+                        return;
+                    }
+
+                    if (withdrawalAmount > currentEarnings) {
+                        openModal(`Withdrawal amount (${formatCurrency(withdrawalAmount)}) exceeds current earnings (${formatCurrency(currentEarnings)}).`, "error");
+                        return;
+                    }
+
+                    if (!db || !userId) {
+                        openModal("Database not initialized or user not logged in.", "error");
+                        return;
+                    }
+
+                    try {
+                        await firestoreModule.addDoc(firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/withdrawals`), {
+                            userId: userId,
+                            amount: withdrawalAmount,
+                            status: 'Pending',
+                            requestDate: firestoreModule.serverTimestamp(),
+                        });
+
+                        // Deduct from current earnings (in a real app, this would be handled by backend after approval)
+                        const userDocRef = firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/profile`);
+                        await firestoreModule.updateDoc(userDocRef, { earnings: currentEarnings - withdrawalAmount });
+
+                        addNotification(`Withdrawal request for ${formatCurrency(withdrawalAmount)} submitted!`, 'success');
+                        openModal(`Your withdrawal request for ${formatCurrency(withdrawalAmount)} has been submitted and is pending approval.`, "success");
+                        amountInput.value = ''; // Clear input
+                    } catch (error) {
+                        console.error("Error submitting withdrawal:", error);
+                        addNotification(`Error submitting withdrawal: ${error.message}`, 'error');
+                        openModal(`Error submitting withdrawal: ${error.message}`, "error");
+                    }
+                };
+            }
+
+            // Set up real-time listener for withdrawal history
+            if (db && userId && isAuthReady) {
+                if (withdrawalUnsubscribe) withdrawalUnsubscribe(); // Clear previous listener
+                withdrawalUnsubscribe = firestoreModule.onSnapshot(
+                    firestoreModule.collection(db, `artifacts/${__app_id}/users/${userId}/withdrawals`),
+                    (snapshot) => {
+                        const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        history.sort((a, b) => (b.requestDate?.toDate ? b.requestDate.toDate().getTime() : 0) - (a.requestDate?.toDate ? a.requestDate.toDate().getTime() : 0));
+                        updateWithdrawalHistoryTable(history);
+                    },
+                    (error) => console.error("Error fetching withdrawal history:", error)
+                );
+            }
+        };
+
+        const updateWithdrawalHistoryTable = (history) => {
+            const contentDiv = document.getElementById('withdrawal-history-content');
+            if (!contentDiv) return;
+
+            if (history.length === 0) {
+                contentDiv.innerHTML = `<p class="text-gray-600">No withdrawal requests yet.</p>`;
+                return;
+            }
+
+            let tableHtml = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-xl">
+                                Amount
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Request Date
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-xl">
+                                Approval Date
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            history.forEach(withdrawal => {
+                const statusClass = withdrawal.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                    withdrawal.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-red-100 text-red-800';
+                tableHtml += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${formatCurrency(withdrawal.amount)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                                ${withdrawal.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${withdrawal.requestDate?.toDate ? new Date(withdrawal.requestDate.toDate()).toLocaleString() : 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            ${withdrawal.approvalDate?.toDate ? new Date(withdrawal.approvalDate.toDate()).toLocaleString() : 'Pending'}
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += `
+                    </tbody>
+                </table>
+            `;
+            contentDiv.innerHTML = tableHtml;
+        };
+
+        // --- Bank & UPI Details ---
+        let bankDetailsUnsubscribe = null;
+        const renderBankAndUPI = () => {
+            // Show loading if bankDetails is null (first load)
+            if (bankDetails === null) {
+                return `
+                    <div class="container mx-auto px-4 py-8">
+                        <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Bank & UPI Details</h2>
+                        <div class="bg-white rounded-2xl shadow-lg p-6 text-center">
+                            <div class="animate-spin-slow rounded-full h-10 w-10 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
+                            <p class="text-gray-700 text-lg">Loading bank details...</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const bankName = bankDetails?.bankName || '';
+            const accountHolderName = bankDetails?.accountHolderName || '';
+            const accountNumber = bankDetails?.accountNumber || '';
+            const ifscCode = bankDetails?.ifscCode || '';
+            const upiId = bankDetails?.upiId || '';
+
+            return `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Bank & UPI Details</h2>
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <form id="bank-upi-form" class="space-y-6">
+                            <div>
+                                <label for="bankName" class="block text-gray-700 text-sm font-bold mb-2">Bank Name:</label>
+                                <input type="text" id="bankName" value="${bankName}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., State Bank of India" required />
+                            </div>
+                            <div>
+                                <label for="accountHolderName" class="block text-gray-700 text-sm font-bold mb-2">Account Holder Name:</label>
+                                <input type="text" id="accountHolderName" value="${accountHolderName}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., John Doe" required />
+                            </div>
+                            <div>
+                                <label for="accountNumber" class="block text-gray-700 text-sm font-bold mb-2">Account Number:</label>
+                                <input type="text" id="accountNumber" value="${accountNumber}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., 123456789012" required />
+                            </div>
+                            <div>
+                                <label for="ifscCode" class="block text-gray-700 text-sm font-bold mb-2">IFSC Code:</label>
+                                <input type="text" id="ifscCode" value="${ifscCode}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., SBIN0001234" required />
+                            </div>
+                            <div>
+                                <label for="upiId" class="block text-gray-700 text-sm font-bold mb-2">UPI ID:</label>
+                                <input type="text" id="upiId" value="${upiId}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., yourname@bankupi" />
+                            </div>
+                            <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                                Save Bank & UPI Details
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        };
+
+        const attachBankAndUPIEvents = () => {
+            const bankUpiForm = document.getElementById('bank-upi-form');
+            if (bankUpiForm) {
+                bankUpiForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    if (!db || !userId) {
+                        addNotification("Error: Database not initialized or user not logged in.", "error");
+                        return;
+                    }
+
+                    const bankName = document.getElementById('bankName').value;
+                    const accountHolderName = document.getElementById('accountHolderName').value;
+                    const accountNumber = document.getElementById('accountNumber').value;
+                    const ifscCode = document.getElementById('ifscCode').value;
+                    const upiId = document.getElementById('upiId').value;
+
+                    try {
+                        const bankDetailsDocRef = firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/bankDetails`);
+                        await firestoreModule.setDoc(bankDetailsDocRef, {
+                            bankName,
+                            accountHolderName,
+                            accountNumber,
+                            ifscCode,
+                            upiId,
+                            lastUpdated: firestoreModule.serverTimestamp(),
+                        }, { merge: true }); // Use merge to avoid overwriting other fields if they exist
+
+                        addNotification("Bank and UPI details saved successfully!", "success");
+                    } catch (error) {
+                        console.error("Error saving bank and UPI details:", error);
+                        addNotification(`Error saving details: ${error.message}`, "error");
+                    }
+                };
+            }
+
+            if (db && userId && isAuthReady) {
+                if (bankDetailsUnsubscribe) bankDetailsUnsubscribe();
+                bankDetailsUnsubscribe = firestoreModule.onSnapshot(
+                    firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/bankDetails`),
+                    (docSnap) => {
+                        if (docSnap.exists()) {
+                            bankDetails = docSnap.data(); // Data is loaded here
+                            console.log("Bank details loaded:", bankDetails); // Debugging
+                        } else {
+                            bankDetails = {}; // Initialize as empty object if no doc
+                            console.log("No bank details found, initializing empty."); // Debugging
+                        }
+                        // Important: Re-render the content *after* bankDetails is updated
+                        if (activePage === 'Bank & UPI') {
+                            renderContent(); // This should trigger renderBankAndUPI with new data
+                        }
+                    },
+                    (error) => console.error("Error fetching bank details:", error)
+                );
+            }
+        };
+
+        // --- Settings Page ---
+        const renderSettings = () => {
+            const displayName = userProfile?.displayName || '';
+            const email = userProfile?.email || '';
+            const mobileNumber = userProfile?.mobileNumber || '';
+            const photoURL = userProfile?.photoURL || 'https://placehold.co/150x150/CCE0FF/000000?text=Profile';
+
+            return `
+                <div class="container mx-auto px-4 py-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 mb-8">Profile Settings</h2>
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <form id="profile-settings-form" class="space-y-6">
+                            <div class="flex items-center space-x-6">
+                                <img id="profile-photo-preview" src="${photoURL}" alt="Profile Photo" class="w-24 h-24 rounded-full object-cover border-2 border-blue-400">
+                                <div>
+                                    <label for="profilePhoto" class="block text-gray-700 text-sm font-bold mb-2">Update Profile Photo:</label>
+                                    <input type="file" id="profilePhoto" accept="image/*" class="block w-full text-sm text-gray-500
+                                        file:mr-4 file:py-2 file:px-4
+                                        file:rounded-full file:border-0
+                                        file:text-sm file:font-semibold
+                                        file:bg-blue-50 file:text-blue-700
+                                        hover:file:bg-blue-100"/>
+                                    <p class="text-xs text-gray-500 mt-1">For demo, this won't upload actual files but you can set a URL.</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="displayName" class="block text-gray-700 text-sm font-bold mb-2">Display Name:</label>
+                                <input type="text" id="displayName" value="${displayName}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., Jane Doe" required />
+                            </div>
+                            <div>
+                                <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
+                                <input type="email" id="email" value="${email}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight bg-gray-100 cursor-not-allowed"
+                                    placeholder="e.g., user@example.com" disabled />
+                                <p class="text-xs text-gray-500 mt-1">Email cannot be changed from here (requires re-authentication).</p>
+                            </div>
+                             <div>
+                                <label for="mobileNumber" class="block text-gray-700 text-sm font-bold mb-2">Mobile Number:</label>
+                                <input type="tel" id="mobileNumber" value="${mobileNumber}"
+                                    class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., +919876543210" />
+                            </div>
+                            <button type="submit"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                                Update Profile
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        };
+
+        const attachSettingsEvents = () => {
+            const profileSettingsForm = document.getElementById('profile-settings-form');
+            if (profileSettingsForm) {
+                profileSettingsForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    if (!db || !userId) {
+                        addNotification("Error: Database not initialized or user not logged in.", "error");
+                        return;
+                    }
+
+                    const displayName = document.getElementById('displayName').value;
+                    const mobileNumber = document.getElementById('mobileNumber').value;
+                    const profilePhotoInput = document.getElementById('profilePhoto');
+                    let newPhotoURL = userProfile?.photoURL;
+
+                    // This part would involve Firebase Storage for real image upload
+                    // For now, let's simulate updating photoURL if a file is selected (e.g., using a placeholder)
+                    if (profilePhotoInput.files && profilePhotoInput.files[0]) {
+                        // In a real app, upload this file to Firebase Storage and get the download URL
+                        // For demo, we'll just use a generic placeholder or keep the old one
+                        addNotification("Image upload functionality is for demo. Photo will not be actually uploaded.", "info");
+                        // newPhotoURL = "https://example.com/new-profile-photo.jpg"; // Replace with actual uploaded URL
+                    }
+
+                    try {
+                        const userDocRef = firestoreModule.doc(db, `artifacts/${__app_id}/users/${userId}/privateData/profile`);
+                        await firestoreModule.updateDoc(userDocRef, {
+                            displayName: displayName,
+                            mobileNumber: mobileNumber,
+                            photoURL: newPhotoURL, // Only update if a new one is set via upload
+                            lastUpdated: firestoreModule.serverTimestamp(),
+                        });
+
+                        // Also update Firebase Auth profile if displayName or photoURL changed
+                        if (auth.currentUser && (auth.currentUser.displayName !== displayName || auth.currentUser.photoURL !== newPhotoURL)) {
+                            await firebaseAuthModule.updateProfile(auth.currentUser, {
+                                displayName: displayName,
+                                photoURL: newPhotoURL,
+                            });
+                            console.log("Firebase Auth profile updated.");
+                        }
+
+                        addNotification("Profile settings updated successfully!", "success");
+                    } catch (error) {
+                        console.error("Error updating profile settings:", error);
+                        addNotification(`Error updating settings: ${error.message}`, "error");
+                    }
+                };
+
+                // Live preview for profile photo (client-side only for visual feedback)
+                const profilePhotoInput = document.getElementById('profilePhoto');
+                const profilePhotoPreview = document.getElementById('profile-photo-preview');
+                if (profilePhotoInput && profilePhotoPreview) {
+                    profilePhotoInput.addEventListener('change', (event) => {
+                        const file = event.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                profilePhotoPreview.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            profilePhotoPreview.src = userProfile?.photoURL || 'https://placehold.co/150x150/CCE0FF/000000?text=Profile';
+                        }
+                    });
+                }
+            }
+        };
+
+
+        // --- Main App Rendering Logic ---
+        const renderApp = () => {
+            const appRoot = document.getElementById('app-root');
+            if (!appRoot) return;
+
+            if (!isAuthReady) {
+                appRoot.innerHTML = `
+                    <div class="text-center">
+                        <div class="animate-spin-slow rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
+                        <p class="text-gray-700 text-xl">Loading dashboard...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (!currentUser) {
+                renderLoginPage();
+                return;
+            }
+
+            // Fetch and listen for user profile updates
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const profileDocRef = firestoreModule.doc(db, `artifacts/${appId}/users/${userId}/privateData/profile`);
+
+            firestoreModule.onSnapshot(
+                profileDocRef,
+                (docSnap) => {
+                    if (docSnap.exists()) {
+                        const profileData = docSnap.data();
+                        userProfile = {
+                            uid: currentUser?.uid || userId,
+                            email: currentUser?.email || profileData.email,
+                            displayName: currentUser?.displayName || profileData.displayName,
+                            photoURL: currentUser?.photoURL || profileData.photoURL,
+                            ...profileData
+                        };
+                        renderDashboardLayout();
+                    } else {
+                        console.log("No user profile found.");
+                        userProfile = null; // Or set to a default empty profile
+                        renderDashboardLayout(); // Still render, but dashboard will show "N/A"
+                    }
+                },
+                (error) => {
+                    console.error("Error fetching user profile:", error);
+                    userProfile = null;
+                    renderDashboardLayout();
+                }
+            );
+
+        };
+
+        const renderLoginPage = () => {
+            const appRoot = document.getElementById('app-root');
+            if (!appRoot) return;
+
+            appRoot.innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
+                        <h2 class="text-3xl font-extrabold text-gray-800 mb-6">Welcome!</h2>
+                        <p class="text-gray-600 mb-8">Sign in to access your dashboard.</p>
+                        ${isAuthReady && currentUser ? `
+                            <p class="mb-4 text-lg font-medium text-gray-700">You are logged in as ${currentUser.displayName || currentUser.email || 'Guest'}.</p>
+                            <button id="logout-button" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:scale-105">
+                                Logout
+                            </button>
+                        ` : `
+                            <button id="login-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:scale-105">
+                                Sign In as Guest (Demo)
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+
+            if (document.getElementById('login-button')) {
+                document.getElementById('login-button').onclick = async () => {
+                    if (!auth) {
+                        console.error("Firebase Auth not initialized.");
+                        addNotification("Error: Firebase Auth not initialized.", "error");
+                        return;
+                    }
+                    try {
+                        await firebaseAuthModule.signInAnonymously(auth);
+                        addNotification("Signed in as Guest!", "success");
+                    }
+                     catch (error) {
+                        console.error("Error signing in:", error);
+                        addNotification(`Login failed: ${error.message}`, "error");
+                    }
+                };
+            }
+            if (document.getElementById('logout-button')) {
+                document.getElementById('logout-button').onclick = async () => {
+                    if (!auth) {
+                        console.error("Firebase Auth not initialized.");
+                        addNotification("Error: Firebase Auth not initialized.", "error");
+                        return;
+                    }
+                    try {
+                        await firebaseAuthModule.signOut(auth);
+                        addNotification("Logged out successfully!", "info");
+                    } catch (error) {
+                        console.error("Error logging out:", error);
+                        addNotification(`Logout failed: ${error.message}`, "error");
+                    }
+                };
+            }
+        };
+
+        const renderDashboardLayout = () => {
+            const appRoot = document.getElementById('app-root');
+            if (!appRoot) return;
+
+            const photoURL = userProfile?.photoURL;
+            const displayName = userProfile?.displayName || (userProfile?.isAnonymous ? 'Guest' : userProfile?.email) || 'Guest';
+            const email = userProfile?.email || 'N/A';
+
+            appRoot.innerHTML = `
+                <div class="flex h-screen bg-gray-100 w-full">
+                    <!-- Sidebar -->
+                    <div class="w-64 bg-gray-800 text-white flex flex-col h-screen fixed top-0 left-0 shadow-lg z-30">
+                        <div class="flex items-center justify-center p-6 border-b border-gray-700">
+                            ${photoURL ? `
+                                <img src="${photoURL}" alt="Profile" class="w-16 h-16 rounded-full object-cover mr-4 border-2 border-blue-400" />
+                            ` : `
+                                <div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl font-bold text-white mr-4">
+                                    ${displayName ? displayName[0] : 'G'}
+                                </div>
+                            `}
+                            <div>
+                                <h1 class="text-xl font-bold">${displayName}</h1>
+                                <p class="text-sm text-gray-400">${email}</p>
+                            </div>
+                        </div>
+                        <nav class="flex-1 overflow-y-auto">
+                            ${[
+                                { name: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2 2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' }, // Home icon
+                                { name: 'My Courses', icon: 'M12 6.253v13.5m0-13.5C10.835 5.474 9.111 5 7 5 3.573 5 1 6.536 1 9c0 2.215 3.36 4.053 7.021 4.417M12 6.253c1.165-.776 2.889-1.253 5-1.253 3.427 0 6 1.536 6 4 0 2.215-3.36 4.053-7.021 4.417M12 6.253v13.5' }, // Book icon
+                                { name: 'My Referrals', icon: 'M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M21 16.5V17m-6-5.5V12m-6 0V11m6 1h.01M17 4H9.5a.5.5 0 000 1H17a.5.5 0 000-1zM21 12h.01M3 6h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1zm0 0V4a1 1 0 011-1h16a1 1 0 011 1v2m-6 6h6' }, // Users icon
+                                { name: 'Team Overview', icon: 'M17 20v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2m7-9a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0zm-6-9a4 4 0 11-8 0 4 4 0 018 0z' }, // User group icon
+                                { name: 'Income Breakdown', icon: 'M16 8v8m-4-0v-8m-4-0v-8M6 18h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z' }, // Chart icon
+                                { name: 'Transaction History', icon: 'M3 10h18M6 14h2M6 18h2m6-4h2m-2-4h2m-2-4h2M3 6h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1z' }, // Receipt icon
+                                { name: 'Affiliate Link', icon: 'M13.586 3.586a2 2 0 112.828 2.828l-7 7A2 2 0 016.343 14H3v3h3.657a2 2 0 011.414.586l7 7a2 2 0 11-2.828 2.828l-7-7A2 2 0 013 17.657V21H0v-3.343a2 2 0 01.586-1.414l7-7A2 2 0 0110.657 3H14v3h-3.343a2 2 0 01-1.414-.586l-7-7z' }, // Link icon
+                                { name: 'Withdrawal', icon: 'M3 10h18M6 14h2M6 18h2m6-4h2m-2-4h2m-2-4h2M3 6h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1z' }, // Wallet icon
+                                { name: 'Bank & UPI', icon: 'M9 8h6m-5 0v6M9 14h6m-5 0v6M17 14h2m-2-4h2M3 6h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1z' }, // Credit card icon
+                                { name: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.562.345 1.252.327 1.724-1.065zM12 8.75a3.25 3.25 0 100 6.5 3.25 3.25 0 000-6.5z' } // Cog icon
+                            ].map(item => `
+                                <button
+                                    id="nav-${item.name.replace(/\s/g, '-')}"
+                                    class="flex items-center px-6 py-3 text-lg font-medium w-full text-left transition-all duration-200 ease-in-out ${
+                                        activePage === item.name ? 'bg-blue-600 text-white border-l-4 border-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                    }"
+                                >
+                                    <svg class="w-6 h-6 mr-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${item.icon}"></path>
+                                    </svg>
+                                    ${item.name}
+                                </button>
+                            `).join('')}
+                        </nav>
+                        <div class="p-6 border-t border-gray-700">
+                            <button action ="/logout"
+                                id="sidebar-logout-button"
+                                class="flex items-center justify-center w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                            >
+                                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Main Content -->
+                    <main id="main-content" class="flex-1 p-8 ml-64 overflow-y-auto">
+                        <!-- Content will be rendered here -->
+                    </main>
+                </div>
+            `;
+
+            // Attach event listeners for sidebar navigation
+            const navItems = [
+                'Dashboard', 'My Courses', 'My Referrals', 'Team Overview',
+                'Income Breakdown', 'Transaction History', 'Affiliate Link', 'Withdrawal',
+                'Bank & UPI', 'Settings' // Added new navigation items
+            ];
+            navItems.forEach(itemName => {
+                const button = document.getElementById(`nav-${itemName.replace(/\s/g, '-')}`);
+                if (button) {
+                    button.onclick = () => {
+                        activePage = itemName;
+                        renderContent();
+                        updateSidebarHighlight(itemName);
+                    };
+                }
+            });
+
+            const sidebarLogoutButton = document.getElementById('sidebar-logout-button');
+            if (sidebarLogoutButton) {
+                sidebarLogoutButton.onclick = async () => {
+                    if (!auth) {
+                        console.error("Firebase Auth not initialized.");
+                        addNotification("Error: Firebase Auth not initialized.", "error");
+                        return;
+                    }
+                    try {
+                        await firebaseAuthModule.signOut(auth);
+                        addNotification("Logged out successfully!", "info");
+                    } catch (error) {
+                        console.error("Error logging out:", error);
+                        addNotification(`Logout failed: ${error.message}`, "error");
+                    }
+                };
+            }
+
+            renderContent(); // Render initial content
+        };
+
+        const updateSidebarHighlight = (pageName) => {
+            const navItems = [
+                'Dashboard', 'My Courses', 'My Referrals', 'Team Overview',
+                'Income Breakdown', 'Transaction History', 'Affiliate Link', 'Withdrawal',
+                'Bank & UPI', 'Settings'
+            ];
+            navItems.forEach(item => {
+                const button = document.getElementById(`nav-${item.replace(/\s/g, '-')}`);
+                if (button) {
+                    if (item === pageName) {
+                        button.classList.add('bg-blue-600', 'text-white', 'border-l-4', 'border-blue-400');
+                        button.classList.remove('text-gray-300', 'hover:bg-gray-700', 'hover:text-white');
+                    } else {
+                        button.classList.remove('bg-blue-600', 'text-white', 'border-l-4', 'border-blue-400');
+                        button.classList.add('text-gray-300', 'hover:bg-gray-700', 'hover:text-white');
+                    }
+                }
+            });
+        };
+
+        const renderContent = () => {
+            const mainContent = document.getElementById('main-content');
+            if (!mainContent) return;
+
+            // Clean up old listeners/intervals to prevent memory leaks and duplicate updates
+            if (referralUnsubscribe) { referralUnsubscribe(); referralUnsubscribe = null; }
+            if (referralInterval) { clearInterval(referralInterval); referralInterval = null; }
+            if (transactionUnsubscribe) { transactionUnsubscribe(); transactionUnsubscribe = null; }
+            if (transactionInterval) { clearInterval(transactionInterval); transactionInterval = null; }
+            if (withdrawalUnsubscribe) { withdrawalUnsubscribe(); withdrawalUnsubscribe = null; }
+            if (bankDetailsUnsubscribe) { bankDetailsUnsubscribe(); bankDetailsUnsubscribe = null; } // Clear bank details listener
+
+            // Destroy all Chart.js instances when navigating away from Income Breakdown
+            Object.values(chartInstances).forEach(chart => chart.destroy());
+            chartInstances = {};
+
+
+            let contentHtml = '';
+            switch (activePage) {
+                case 'Dashboard':
+                    contentHtml = renderDashboardOverview();
+                    break;
+                case 'My Courses':
+                    contentHtml = renderMyCourses();
+                    break;
+                case 'My Referrals':
+                    contentHtml = renderMyReferrals();
+                    break;
+                case 'Team Overview':
+                    contentHtml = renderTeamOverview();
+                    break;
+                case 'Income Breakdown':
+                    contentHtml = renderIncomeBreakdown();
+                    break;
+                case 'Transaction History':
+                    contentHtml = renderTransactionHistory();
+                    break;
+                case 'Affiliate Link':
+                    contentHtml = renderAffiliateLink();
+                    break;
+                case 'Withdrawal':
+                    contentHtml = renderWithdrawal();
+                    break;
+                case 'Bank & UPI': // New case
+                    contentHtml = renderBankAndUPI();
+                    break;
+                case 'Settings': // New case
+                    contentHtml = renderSettings();
+                    break;
+                default:
+                    contentHtml = renderDashboardOverview();
+            }
+
+            mainContent.innerHTML = contentHtml;
+
+            // Attach specific events after HTML is rendered
+            if (activePage === 'Dashboard') {
+                animateStatCounter('stat-Current-Earnings-value', userProfile?.earnings || 0, true);
+                animateStatCounter('stat-Total-Referrals-value', userProfile?.referrals || 0);
+                animateStatCounter('stat-Purchased-Courses-value', userProfile?.purchasedCourses?.length || 0);
+                animateStatCounter('stat-Team-Size-value', userProfile?.teamSize || 0);
+                // Also render income breakdown if it's part of the dashboard overview
+                const incomeBreakdownSection = document.getElementById('income-breakdown-section');
+                if (incomeBreakdownSection) {
+                    incomeBreakdownSection.innerHTML = renderIncomeBreakdown();
+                    // Chart.js initialization for Income Breakdown
+                    setTimeout(() => {
+                        createChart('dailyEarningsChart', 'bar', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], [500, 750, 600, 900, 800, 1000, 700], 'Daily Earnings (INR)');
+                        createChart('weeklyEarningsChart', 'bar', ['Week 1', 'Week 2', 'Week 3', 'Week 4'], [3000, 4500, 3800, 5200], 'Weekly Earnings (INR)');
+                        createChart('monthlyEarningsChart', 'bar', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], [12000, 15000, 13500, 17000, 16000, 19000], 'Monthly Earnings (INR)');
+                    }, 0);
+                }
+            } else if (activePage === 'My Referrals') {
+                // Initial update for referrals table after rendering container
+                updateReferralsTable([]); // Render empty table, then onSnapshot will populate
+            } else if (activePage === 'Transaction History') {
+                // Initial update for transactions table after rendering container
+                updateTransactionTable([]); // Render empty table, then onSnapshot will populate
+            } else if (activePage === 'Affiliate Link') {
+                attachAffiliateLinkEvents();
+            } else if (activePage === 'Withdrawal') {
+                attachWithdrawalEvents();
+                // Initial update for withdrawal history table
+                updateWithdrawalHistoryTable([]); // Render empty table, then onSnapshot will populate
+            } else if (activePage === 'Bank & UPI') { // New attachment
+                attachBankAndUPIEvents();
+            } else if (activePage === 'Settings') { // New attachment
+                attachSettingsEvents();
+            }
+        };
+
+        // --- Initial Load ---
+        // Call initializeFirebase and renderApp directly as this is a module script
+        initializeFirebase();
+        renderNotifications(); // Render notification container early
+    </script>
+</body>
+</html>
