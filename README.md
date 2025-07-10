@@ -53,3 +53,5 @@ Users can view transactions, orders, team members, and course progress on their 
 Admin can track purchases and user activities.
 
 This project demonstrates key principles of modern web application development like secure authentication, relational data modeling (teams, orders, transactions), and an integrated user experience.
+
+I had almost completed this project but due to the suspicious behaviour of the client I left the project.
