@@ -5,7 +5,6 @@ A full-stack Node.js application for a modern network marketing system, where us
 
 [![Network Marketing Demo]](https://youtu.be/-pGbPXsBXek)
 
-Click the image to watch a short demo of the platform in action!
 
 
 ✨ Features
